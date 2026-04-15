@@ -21,7 +21,7 @@ func Setup(db *sql.DB, cfg *config.Config) *chi.Mux {
 	r.Use(chimiddleware.Recoverer)
 	r.Use(chimiddleware.RealIP)
 	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   []string{"http://localhost:3000", "http://localhost:5173"},
+		AllowedOrigins:   []string{"http://localhost:3000", "http://localhost:5173", "http://*", "https://*"},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type"},
 		ExposedHeaders:   []string{"Link"},
@@ -57,6 +57,7 @@ func Setup(db *sql.DB, cfg *config.Config) *chi.Mux {
 
 		r.Get("/profile/{id}", profileHandler.GetProfile)
 		r.Get("/freelancers", profileHandler.SearchFreelancers)
+		r.Get("/freelancers/featured", profileHandler.GetFeaturedFreelancers)
 		r.Get("/reviews/{id}", reviewHandler.GetUserReviews)
 
 		// Protected routes

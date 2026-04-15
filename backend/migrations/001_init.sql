@@ -9,6 +9,7 @@ CREATE TABLE users (
     first_name VARCHAR(100) NOT NULL,
     last_name VARCHAR(100) NOT NULL,
     patronymic VARCHAR(100),
+    pinfl VARCHAR(14) NOT NULL,
     phone VARCHAR(20) UNIQUE NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
     avatar_url VARCHAR(500),
@@ -144,6 +145,7 @@ INSERT INTO skills (name, category_id) VALUES
 -- Индексы
 CREATE INDEX idx_users_phone ON users(phone);
 CREATE INDEX idx_users_role ON users(role);
+CREATE INDEX idx_users_pinfl ON users(pinfl);
 CREATE INDEX idx_jobs_status ON jobs(status);
 CREATE INDEX idx_jobs_client ON jobs(client_id);
 CREATE INDEX idx_jobs_category ON jobs(category_id);

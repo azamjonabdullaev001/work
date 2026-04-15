@@ -33,10 +33,10 @@ func (h *ProfileHandler) GetProfile(w http.ResponseWriter, r *http.Request) {
 
 	var user models.User
 	err = h.DB.QueryRow(`
-		SELECT id, first_name, last_name, patronymic, phone, avatar_url, role, title, bio, hourly_rate, location, created_at, updated_at
+		SELECT id, first_name, last_name, patronymic, pinfl, phone, avatar_url, role, title, bio, hourly_rate, location, created_at, updated_at
 		FROM users WHERE id = $1
 	`, userID).Scan(
-		&user.ID, &user.FirstName, &user.LastName, &user.Patronymic, &user.Phone,
+		&user.ID, &user.FirstName, &user.LastName, &user.Patronymic, &user.PINFL, &user.Phone,
 		&user.AvatarURL, &user.Role, &user.Title, &user.Bio, &user.HourlyRate,
 		&user.Location, &user.CreatedAt, &user.UpdatedAt,
 	)
@@ -235,7 +235,7 @@ func (h *ProfileHandler) SearchFreelancers(w http.ResponseWriter, r *http.Reques
 	offset := (page - 1) * limit
 
 	baseQuery := `
-		SELECT DISTINCT u.id, u.first_name, u.last_name, u.patronymic, u.phone, u.avatar_url, u.role, u.title, u.bio, u.hourly_rate, u.location, u.created_at, u.updated_at
+		SELECT DISTINCT u.id, u.first_name, u.last_name, u.patronymic, u.pinfl, u.phone, u.avatar_url, u.role, u.title, u.bio, u.hourly_rate, u.location, u.created_at, u.updated_at
 		FROM users u
 		LEFT JOIN user_skills us ON u.id = us.user_id
 		LEFT JOIN skills s ON us.skill_id = s.id
@@ -277,7 +277,69 @@ func (h *ProfileHandler) SearchFreelancers(w http.ResponseWriter, r *http.Reques
 	var users []models.User
 	for rows.Next() {
 		var u models.User
-		if err := rows.Scan(&u.ID, &u.FirstName, &u.LastName, &u.Patronymic, &u.Phone, &u.AvatarURL, &u.Role, &u.Title, &u.Bio, &u.HourlyRate, &u.Location, &u.CreatedAt, &u.UpdatedAt); err == nil {
+		if err := rows.Scan(&u.ID, &u.FirstName, &u.LastName, &u.Patronymic, &u.PINFL, &u.Phone, &u.AvatarURL, &u.Role, &u.Title, &u.Bio, &u.HourlyRate, &u.Location, &u.CreatedAt, &u.UpdatedAt); err == nil {
+			u.Skills = getUserSkills(h.DB, u.ID)
+			var avgRating sql.NullFloat64
+			var reviewCount int
+			h.DB.QueryRow(`SELECT COALESCE(AVG(rating), 0), COUNT(*) FROM reviews WHERE reviewee_id = $1`, u.ID).Scan(&avgRating, &reviewCount)
+			if avgRating.Valid {
+				r := avgRating.Float64
+				u.Rating = &r
+			}
+			u.Reviews = reviewCount
+			users = append(users, u)
+		}
+	}
+
+	if users == nil {
+		users = []models.User{}
+	}
+
+	writeJSON(w, http.StatusOK, models.APIResponse{
+		Success: true,
+		Data:    users,
+	})
+}
+
+// GetFeaturedFreelancers returns freelancers who have completed their profile (have title, bio, skills)
+func (h *ProfileHandler) GetFeaturedFreelancers(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query()
+	categoryID := query.Get("category_id")
+
+	baseQuery := `
+		SELECT DISTINCT u.id, u.first_name, u.last_name, u.patronymic, u.pinfl, u.phone, u.avatar_url, u.role, u.title, u.bio, u.hourly_rate, u.location, u.created_at, u.updated_at
+		FROM users u
+		JOIN user_skills us ON u.id = us.user_id
+		JOIN skills s ON us.skill_id = s.id
+		WHERE u.role = 'freelancer'
+		  AND u.title IS NOT NULL AND u.title != ''
+		  AND u.bio IS NOT NULL AND u.bio != ''
+	`
+	args := []interface{}{}
+	argIdx := 1
+
+	if categoryID != "" {
+		baseQuery += fmt.Sprintf(` AND s.category_id = $%d`, argIdx)
+		args = append(args, categoryID)
+		argIdx++
+	}
+
+	baseQuery += fmt.Sprintf(` ORDER BY u.created_at DESC LIMIT $%d`, argIdx)
+	args = append(args, 12)
+
+	rows, err := h.DB.Query(baseQuery, args...)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, models.APIResponse{
+			Success: false, Error: "Database error",
+		})
+		return
+	}
+	defer rows.Close()
+
+	var users []models.User
+	for rows.Next() {
+		var u models.User
+		if err := rows.Scan(&u.ID, &u.FirstName, &u.LastName, &u.Patronymic, &u.PINFL, &u.Phone, &u.AvatarURL, &u.Role, &u.Title, &u.Bio, &u.HourlyRate, &u.Location, &u.CreatedAt, &u.UpdatedAt); err == nil {
 			u.Skills = getUserSkills(h.DB, u.ID)
 			var avgRating sql.NullFloat64
 			var reviewCount int

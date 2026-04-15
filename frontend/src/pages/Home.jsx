@@ -1,12 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { FiArrowRight, FiCheckCircle, FiSearch, FiBriefcase, FiUsers } from 'react-icons/fi';
-import { getCategories, listJobs } from '../api/api';
+import { getCategories, listJobs, getFeaturedFreelancers } from '../api/api';
 import JobCard from '../components/JobCard';
+import FreelancerCard from '../components/FreelancerCard';
 
 const Home = () => {
   const [categories, setCategories] = useState([]);
   const [recentJobs, setRecentJobs] = useState([]);
+  const [featuredFreelancers, setFeaturedFreelancers] = useState([]);
+  const [selectedCategory, setSelectedCategory] = useState('');
 
   useEffect(() => {
     getCategories().then(res => {
@@ -16,7 +19,22 @@ const Home = () => {
     listJobs({ page: 1 }).then(res => {
       if (res.data.success) setRecentJobs(res.data.data.slice(0, 6));
     }).catch(() => {});
+
+    loadFeaturedFreelancers();
   }, []);
+
+  const loadFeaturedFreelancers = (categoryId) => {
+    const params = categoryId ? { category_id: categoryId } : {};
+    getFeaturedFreelancers(params).then(res => {
+      if (res.data.success) setFeaturedFreelancers(res.data.data);
+    }).catch(() => {});
+  };
+
+  const handleCategoryFilter = (catId) => {
+    const newCat = selectedCategory === String(catId) ? '' : String(catId);
+    setSelectedCategory(newCat);
+    loadFeaturedFreelancers(newCat || undefined);
+  };
 
   return (
     <div className="home-page">
@@ -55,8 +73,51 @@ const Home = () => {
         </div>
       </section>
 
-      {/* Categories */}
+      {/* Featured Freelancers by Category */}
       <section className="section">
+        <div className="container">
+          <div className="section-header">
+            <h2>Лучшие специалисты</h2>
+            <p>Фрилансеры с заполненным профилем — готовы к работе</p>
+          </div>
+          <div className="category-filter-bar">
+            <button
+              className={`filter-chip ${selectedCategory === '' ? 'active' : ''}`}
+              onClick={() => handleCategoryFilter('')}
+            >
+              Все
+            </button>
+            {categories.map(cat => (
+              <button
+                key={cat.id}
+                className={`filter-chip ${selectedCategory === String(cat.id) ? 'active' : ''}`}
+                onClick={() => handleCategoryFilter(cat.id)}
+              >
+                {cat.icon} {cat.name}
+              </button>
+            ))}
+          </div>
+          {featuredFreelancers.length > 0 ? (
+            <div className="freelancers-grid">
+              {featuredFreelancers.map(f => (
+                <FreelancerCard key={f.id} freelancer={f} />
+              ))}
+            </div>
+          ) : (
+            <div className="empty-state">
+              <p>Пока нет специалистов в этой категории</p>
+            </div>
+          )}
+          <div style={{ textAlign: 'center', marginTop: '24px' }}>
+            <Link to="/freelancers" className="btn btn-outline">
+              Все фрилансеры <FiArrowRight />
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* Categories */}
+      <section className="section section-gray">
         <div className="container">
           <div className="section-header">
             <h2>Популярные категории</h2>
@@ -64,7 +125,7 @@ const Home = () => {
           </div>
           <div className="categories-grid">
             {categories.map(cat => (
-              <Link to={`/jobs?category_id=${cat.id}`} key={cat.id} className="category-card">
+              <Link to={`/freelancers?category_id=${cat.id}`} key={cat.id} className="category-card">
                 <span className="category-icon">{cat.icon}</span>
                 <span className="category-name">{cat.name}</span>
                 <FiArrowRight className="category-arrow" />
@@ -75,7 +136,7 @@ const Home = () => {
       </section>
 
       {/* How it works */}
-      <section className="section section-gray">
+      <section className="section">
         <div className="container">
           <div className="section-header">
             <h2>Как это работает</h2>
@@ -85,17 +146,17 @@ const Home = () => {
             <div className="step-card">
               <div className="step-number">1</div>
               <h3>Создайте аккаунт</h3>
-              <p>Зарегистрируйтесь как фрилансер или заказчик. Заполните профиль и укажите свои навыки.</p>
+              <p>Зарегистрируйтесь как фрилансер или заказчик. Укажите ПИНФЛ и заполните профиль.</p>
             </div>
             <div className="step-card">
               <div className="step-number">2</div>
-              <h3>Найдите проект</h3>
-              <p>Просматривайте заказы или ищите специалистов. Подберите идеальное предложение.</p>
+              <h3>Заказчик — создаёт заказ</h3>
+              <p>Опишите задачу, укажите бюджет и требования. Фрилансеры увидят ваш заказ и откликнутся.</p>
             </div>
             <div className="step-card">
               <div className="step-number">3</div>
-              <h3>Начните работать</h3>
-              <p>Обсудите детали, согласуйте бюджет и приступайте к работе. Всё просто и безопасно.</p>
+              <h3>Фрилансер — находит работу</h3>
+              <p>Просматривайте заказы, подавайте предложения и начинайте работать над проектами.</p>
             </div>
           </div>
         </div>
@@ -103,7 +164,7 @@ const Home = () => {
 
       {/* Recent Jobs */}
       {recentJobs.length > 0 && (
-        <section className="section">
+        <section className="section section-gray">
           <div className="container">
             <div className="section-header">
               <h2>Последние заказы</h2>

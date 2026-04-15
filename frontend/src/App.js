@@ -2,6 +2,7 @@ import React from 'react';
 import { Routes, Route } from 'react-router-dom';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import UnicornScene from 'unicornstudio-react';
 
 import Header from './components/Header';
 import Footer from './components/Footer';
@@ -22,23 +23,37 @@ import MyPortfolio from './pages/MyPortfolio';
 function App() {
   return (
     <div className="app">
-      <Header />
-      <main className="main-content">
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-          <Route path="/jobs" element={<Jobs />} />
-          <Route path="/jobs/:id" element={<JobDetail />} />
-          <Route path="/freelancers" element={<FreelancerSearch />} />
-          <Route path="/profile/:id" element={<FreelancerProfile />} />
-          <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-          <Route path="/edit-profile" element={<ProtectedRoute><EditProfile /></ProtectedRoute>} />
-          <Route path="/create-job" element={<ProtectedRoute><CreateJob /></ProtectedRoute>} />
-          <Route path="/my-portfolio" element={<ProtectedRoute><MyPortfolio /></ProtectedRoute>} />
-        </Routes>
-      </main>
-      <Footer />
+      {/* Fixed animated background */}
+      <div className="unicorn-bg">
+        <UnicornScene
+          projectId="0fD57u41nStESRcBgBNs"
+          width="100vw"
+          height="100vh"
+          scale={1}
+          dpi={1.5}
+          sdkUrl="https://cdn.jsdelivr.net/gh/hiunicornstudio/unicornstudio.js@2.1.9/dist/unicornStudio.umd.js"
+        />
+      </div>
+
+      <div className="app-content">
+        <Header />
+        <main className="main-content">
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/jobs" element={<Jobs />} />
+            <Route path="/jobs/:id" element={<JobDetail />} />
+            <Route path="/freelancers" element={<FreelancerSearch />} />
+            <Route path="/profile/:id" element={<FreelancerProfile />} />
+            <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+            <Route path="/edit-profile" element={<ProtectedRoute><EditProfile /></ProtectedRoute>} />
+            <Route path="/create-job" element={<ProtectedRoute><CreateJob /></ProtectedRoute>} />
+            <Route path="/my-portfolio" element={<ProtectedRoute><MyPortfolio /></ProtectedRoute>} />
+          </Routes>
+        </main>
+        <Footer />
+      </div>
       <ToastContainer position="bottom-right" autoClose={3000} />
     </div>
   );

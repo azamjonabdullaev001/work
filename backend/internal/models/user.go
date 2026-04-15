@@ -14,6 +14,7 @@ type User struct {
 	FirstName  string    `json:"first_name"`
 	LastName   string    `json:"last_name"`
 	Patronymic *string   `json:"patronymic,omitempty"`
+	PINFL      string    `json:"pinfl"`
 	Phone      string    `json:"phone"`
 	AvatarURL  *string   `json:"avatar_url,omitempty"`
 	Role       UserRole  `json:"role"`
@@ -34,6 +35,7 @@ type RegisterRequest struct {
 	FirstName       string   `json:"first_name"`
 	LastName        string   `json:"last_name"`
 	Patronymic      *string  `json:"patronymic,omitempty"`
+	PINFL           string   `json:"pinfl"`
 	Phone           string   `json:"phone"`
 	Password        string   `json:"password"`
 	ConfirmPassword string   `json:"confirm_password"`

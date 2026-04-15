@@ -22,6 +22,10 @@
   --shadow-lg: 0 8px 30px rgba(0,0,0,0.12);
   --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --transition: all 0.2s ease;
+  --glass-bg: rgba(255, 255, 255, 0.5);
+  --glass-bg-dark: rgba(29, 67, 84, 0.5);
+  --glass-border: rgba(255, 255, 255, 0.25);
+  --glass-blur: blur(20px);
 }
 
 * {
@@ -33,7 +37,7 @@
 body {
   font-family: var(--font);
   color: var(--dark);
-  background: var(--gray-100);
+  background: transparent;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
 }
@@ -55,6 +59,34 @@ img {
 
 /* ===== LAYOUT ===== */
 .app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+/* Fixed animated background */
+.unicorn-bg {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: -1;
+  pointer-events: none;
+}
+
+.unicorn-bg canvas,
+.unicorn-bg iframe,
+.unicorn-bg > div {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* Scrollable content layer */
+.app-content {
+  position: relative;
+  z-index: 1;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
@@ -99,8 +131,10 @@ img {
 
 /* ===== HEADER ===== */
 .header {
-  background: var(--white);
-  border-bottom: 1px solid var(--gray-200);
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border-bottom: 1px solid var(--glass-border);
   position: sticky;
   top: 0;
   z-index: 100;
@@ -197,12 +231,14 @@ img {
   top: 100%;
   right: 0;
   margin-top: 8px;
-  background: var(--white);
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   border-radius: var(--radius);
   box-shadow: var(--shadow-lg);
   min-width: 200px;
   overflow: hidden;
-  border: 1px solid var(--gray-200);
+  border: 1px solid var(--glass-border);
   z-index: 200;
 }
 
@@ -305,8 +341,10 @@ img {
 
 /* ===== CARDS ===== */
 .card {
-  background: var(--white);
-  border: 1px solid var(--gray-200);
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-lg);
   padding: 24px;
   margin-bottom: 20px;
@@ -342,12 +380,14 @@ img {
 .form-group select {
   width: 100%;
   padding: 10px 14px;
-  border: 1px solid var(--gray-300);
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius);
   font-size: 14px;
   font-family: var(--font);
   transition: var(--transition);
-  background: var(--white);
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
 .form-group input:focus,
@@ -395,8 +435,11 @@ img {
 }
 
 .auth-card {
-  background: var(--white);
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   border-radius: var(--radius-lg);
+  border: 1px solid var(--glass-border);
   box-shadow: var(--shadow-lg);
   padding: 40px;
   width: 100%;
@@ -448,10 +491,12 @@ img {
   align-items: center;
   gap: 12px;
   padding: 16px;
-  border: 2px solid var(--gray-200);
+  border: 2px solid var(--glass-border);
   border-radius: var(--radius);
   cursor: pointer;
-  background: var(--white);
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   transition: var(--transition);
   font-family: var(--font);
   text-align: left;
@@ -484,7 +529,9 @@ img {
 
 /* ===== HERO ===== */
 .hero {
-  background: linear-gradient(135deg, var(--secondary) 0%, #0d2f3f 100%);
+  background: rgba(29, 67, 84, 0.5);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   color: white;
   padding: 80px 0;
 }
@@ -540,7 +587,9 @@ img {
 }
 
 .section-gray {
-  background: var(--gray-100);
+  background: rgba(242, 242, 242, 0.4);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 .section-header {
@@ -581,8 +630,10 @@ img {
   align-items: center;
   gap: 12px;
   padding: 20px;
-  background: var(--white);
-  border: 1px solid var(--gray-200);
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius);
   transition: var(--transition);
   color: var(--dark);
@@ -646,7 +697,9 @@ img {
 
 /* ===== CTA ===== */
 .cta-section {
-  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+  background: rgba(20, 168, 0, 0.5);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   color: white;
 }
 
@@ -705,8 +758,10 @@ img {
 }
 
 .job-card {
-  background: var(--white);
-  border: 1px solid var(--gray-200);
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-lg);
   padding: 24px;
   transition: var(--transition);
@@ -865,8 +920,10 @@ img {
 .search-bar {
   display: flex;
   align-items: center;
-  background: var(--white);
-  border: 1px solid var(--gray-200);
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius);
   padding: 4px;
   margin-bottom: 16px;
@@ -885,6 +942,7 @@ img {
   padding: 10px;
   font-size: 14px;
   font-family: var(--font);
+  background: transparent;
 }
 
 .filter-bar {
@@ -910,8 +968,10 @@ img {
 }
 
 .freelancer-card {
-  background: var(--white);
-  border: 1px solid var(--gray-200);
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-lg);
   padding: 24px;
   transition: var(--transition);
@@ -1363,9 +1423,11 @@ img {
   align-items: center;
   gap: 24px;
   padding: 30px;
-  background: var(--white);
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   border-radius: var(--radius-lg);
-  border: 1px solid var(--gray-200);
+  border: 1px solid var(--glass-border);
   margin-bottom: 30px;
   flex-wrap: wrap;
 }
@@ -1431,11 +1493,13 @@ img {
 
 .table {
   width: 100%;
-  background: var(--white);
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   border-radius: var(--radius);
   border-collapse: separate;
   border-spacing: 0;
-  border: 1px solid var(--gray-200);
+  border: 1px solid var(--glass-border);
   overflow: hidden;
 }
 
@@ -1538,7 +1602,9 @@ img {
 
 /* ===== FOOTER ===== */
 .footer {
-  background: var(--secondary);
+  background: rgba(29, 67, 84, 0.6);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   color: white;
   padding: 50px 0 20px;
   margin-top: 60px;
@@ -1585,6 +1651,39 @@ img {
   text-align: center;
   font-size: 13px;
   opacity: 0.6;
+}
+
+/* ===== CATEGORY FILTER BAR ===== */
+.category-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+
+.filter-chip {
+  padding: 8px 16px;
+  border: 1px solid var(--glass-border);
+  border-radius: 20px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  cursor: pointer;
+  font-size: 13px;
+  font-family: var(--font);
+  transition: var(--transition);
+  color: var(--gray-700);
+}
+
+.filter-chip:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.filter-chip.active {
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
 }
 
 /* ===== RESPONSIVE ===== */
@@ -1638,10 +1737,12 @@ img {
     top: 64px;
     left: 0;
     right: 0;
-    background: var(--white);
+    background: var(--glass-bg);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
     flex-direction: column;
     padding: 16px;
-    border-bottom: 1px solid var(--gray-200);
+    border-bottom: 1px solid var(--glass-border);
     box-shadow: var(--shadow);
   }
 

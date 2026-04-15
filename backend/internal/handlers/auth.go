@@ -43,6 +43,13 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if req.PINFL == "" || len(req.PINFL) != 14 {
+		writeJSON(w, http.StatusBadRequest, models.APIResponse{
+			Success: false, Error: "PINFL must be exactly 14 digits",
+		})
+		return
+	}
+
 	if utf8.RuneCountInString(req.Password) < 6 {
 		writeJSON(w, http.StatusBadRequest, models.APIResponse{
 			Success: false, Error: "Password must be at least 6 characters",
@@ -92,11 +99,11 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	// Insert user
 	var user models.User
 	err = h.DB.QueryRow(`
-		INSERT INTO users (first_name, last_name, patronymic, phone, password_hash, role)
-		VALUES ($1, $2, $3, $4, $5, $6)
-		RETURNING id, first_name, last_name, patronymic, phone, avatar_url, role, title, bio, hourly_rate, location, created_at, updated_at
-	`, req.FirstName, req.LastName, req.Patronymic, req.Phone, string(hashedPassword), req.Role).Scan(
-		&user.ID, &user.FirstName, &user.LastName, &user.Patronymic, &user.Phone,
+		INSERT INTO users (first_name, last_name, patronymic, pinfl, phone, password_hash, role)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		RETURNING id, first_name, last_name, patronymic, pinfl, phone, avatar_url, role, title, bio, hourly_rate, location, created_at, updated_at
+	`, req.FirstName, req.LastName, req.Patronymic, req.PINFL, req.Phone, string(hashedPassword), req.Role).Scan(
+		&user.ID, &user.FirstName, &user.LastName, &user.Patronymic, &user.PINFL, &user.Phone,
 		&user.AvatarURL, &user.Role, &user.Title, &user.Bio, &user.HourlyRate,
 		&user.Location, &user.CreatedAt, &user.UpdatedAt,
 	)
@@ -145,10 +152,10 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	var user models.User
 	var passwordHash string
 	err := h.DB.QueryRow(`
-		SELECT id, first_name, last_name, patronymic, phone, password_hash, avatar_url, role, title, bio, hourly_rate, location, created_at, updated_at
+		SELECT id, first_name, last_name, patronymic, pinfl, phone, password_hash, avatar_url, role, title, bio, hourly_rate, location, created_at, updated_at
 		FROM users WHERE phone = $1
 	`, req.Phone).Scan(
-		&user.ID, &user.FirstName, &user.LastName, &user.Patronymic, &user.Phone,
+		&user.ID, &user.FirstName, &user.LastName, &user.Patronymic, &user.PINFL, &user.Phone,
 		&passwordHash, &user.AvatarURL, &user.Role, &user.Title, &user.Bio,
 		&user.HourlyRate, &user.Location, &user.CreatedAt, &user.UpdatedAt,
 	)
@@ -194,10 +201,10 @@ func (h *AuthHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 
 	var user models.User
 	err := h.DB.QueryRow(`
-		SELECT id, first_name, last_name, patronymic, phone, avatar_url, role, title, bio, hourly_rate, location, created_at, updated_at
+		SELECT id, first_name, last_name, patronymic, pinfl, phone, avatar_url, role, title, bio, hourly_rate, location, created_at, updated_at
 		FROM users WHERE id = $1
 	`, userID).Scan(
-		&user.ID, &user.FirstName, &user.LastName, &user.Patronymic, &user.Phone,
+		&user.ID, &user.FirstName, &user.LastName, &user.Patronymic, &user.PINFL, &user.Phone,
 		&user.AvatarURL, &user.Role, &user.Title, &user.Bio, &user.HourlyRate,
 		&user.Location, &user.CreatedAt, &user.UpdatedAt,
 	)

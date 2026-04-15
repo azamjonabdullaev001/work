@@ -45,7 +45,7 @@ export const uploadAvatar = (formData) =>
   api.post('/profile/avatar', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
   });
-export const searchFreelancers = (params) => api.get('/freelancers', { params });
+export const searchFreelancers = (params) => api.get('/freelancers', { params });\nexport const getFeaturedFreelancers = (params) => api.get('/freelancers/featured', { params });
 
 // Jobs
 export const listJobs = (params) => api.get('/jobs', { params });

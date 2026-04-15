@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { register as registerApi } from '../api/api';
 import { toast } from 'react-toastify';
-import { FiUser, FiPhone, FiLock, FiBriefcase, FiCode } from 'react-icons/fi';
+import { FiUser, FiPhone, FiLock, FiBriefcase, FiCode, FiCreditCard } from 'react-icons/fi';
 
 const Register = () => {
   const { loginUser } = useAuth();
@@ -13,6 +13,7 @@ const Register = () => {
     first_name: '',
     last_name: '',
     patronymic: '',
+    pinfl: '',
     phone: '',
     password: '',
     confirm_password: '',
@@ -21,8 +22,12 @@ const Register = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.first_name || !form.last_name || !form.phone || !form.password) {
+    if (!form.first_name || !form.last_name || !form.phone || !form.password || !form.pinfl) {
       toast.error('Заполните обязательные поля');
+      return;
+    }
+    if (form.pinfl.length !== 14 || !/^\d{14}$/.test(form.pinfl)) {
+      toast.error('ПИНФЛ должен содержать ровно 14 цифр');
       return;
     }
     if (form.password !== form.confirm_password) {
@@ -119,6 +124,18 @@ const Register = () => {
               placeholder="Введите отчество"
               value={form.patronymic}
               onChange={e => setForm({ ...form, patronymic: e.target.value })}
+            />
+          </div>
+
+          <div className="form-group">
+            <label><FiCreditCard /> ПИНФЛ (из паспорта) *</label>
+            <input
+              type="text"
+              placeholder="14 цифр из паспорта"
+              value={form.pinfl}
+              onChange={e => setForm({ ...form, pinfl: e.target.value.replace(/\D/g, '').slice(0, 14) })}
+              maxLength={14}
+              required
             />
           </div>
 
