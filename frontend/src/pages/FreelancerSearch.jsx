@@ -71,7 +71,7 @@ const FreelancerSearch = () => {
             <select value={categoryId} onChange={e => { setCategoryId(e.target.value); setPage(1); }}>
               <option value="">Все категории</option>
               {categories.map(c => (
-                <option key={c.id} value={c.id}>{c.icon} {c.name}</option>
+                <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </select>
             <select value={skillId} onChange={e => { setSkillId(e.target.value); setPage(1); }}>

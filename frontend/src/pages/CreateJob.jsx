@@ -114,7 +114,7 @@ const CreateJob = () => {
             <select value={form.category_id} onChange={e => setForm({...form, category_id: e.target.value})}>
               <option value="">Выберите категорию</option>
               {categories.map(c => (
-                <option key={c.id} value={c.id}>{c.icon} {c.name}</option>
+                <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </select>
           </div>

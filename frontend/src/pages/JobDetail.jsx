@@ -103,7 +103,7 @@ const JobDetail = () => {
               <div className="job-detail-header">
                 <h1>{job.title}</h1>
                 {job.category && (
-                  <span className="badge">{job.category.icon} {job.category.name}</span>
+                  <span className="badge">{job.category.name}</span>
                 )}
               </div>
 
