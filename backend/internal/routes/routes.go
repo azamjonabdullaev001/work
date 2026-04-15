@@ -41,6 +41,8 @@ func Setup(db *sql.DB, cfg *config.Config) *chi.Mux {
 	proposalHandler := &handlers.ProposalHandler{DB: db}
 	skillHandler := &handlers.SkillHandler{DB: db}
 	reviewHandler := &handlers.ReviewHandler{DB: db}
+	followHandler := &handlers.FollowHandler{DB: db}
+	contractHandler := &handlers.ContractHandler{DB: db}
 
 	authMW := middleware.AuthMiddleware(cfg.JWTSecret)
 
@@ -59,6 +61,9 @@ func Setup(db *sql.DB, cfg *config.Config) *chi.Mux {
 		r.Get("/freelancers", profileHandler.SearchFreelancers)
 		r.Get("/freelancers/featured", profileHandler.GetFeaturedFreelancers)
 		r.Get("/reviews/{id}", reviewHandler.GetUserReviews)
+		r.Get("/followers/{id}", followHandler.GetFollowers)
+		r.Get("/following/{id}", followHandler.GetFollowing)
+		r.Get("/follow-counts/{id}", followHandler.GetFollowCounts)
 
 		// Protected routes
 		r.Group(func(r chi.Router) {
@@ -83,6 +88,13 @@ func Setup(db *sql.DB, cfg *config.Config) *chi.Mux {
 			r.Put("/proposals/{id}/accept", proposalHandler.AcceptProposal)
 
 			r.Post("/reviews", reviewHandler.CreateReview)
+
+			r.Post("/follow/{id}", followHandler.FollowUser)
+			r.Delete("/follow/{id}", followHandler.UnfollowUser)
+			r.Get("/follow/check/{id}", followHandler.CheckFollow)
+
+			r.Get("/contracts/my", contractHandler.GetMyContracts)
+			r.Put("/contracts/{id}/confirm", contractHandler.ConfirmContract)
 		})
 	})
 

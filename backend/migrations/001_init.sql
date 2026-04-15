@@ -109,7 +109,7 @@ CREATE TABLE reviews (
     contract_id INT REFERENCES contracts(id) ON DELETE CASCADE,
     reviewer_id INT REFERENCES users(id) ON DELETE CASCADE,
     reviewee_id INT REFERENCES users(id) ON DELETE CASCADE,
-    rating INT CHECK (rating >= 1 AND rating <= 5),
+    rating INT CHECK (rating >= 1 AND rating <= 10),
     comment TEXT,
     created_at TIMESTAMP DEFAULT NOW()
 );

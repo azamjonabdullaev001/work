@@ -79,4 +79,16 @@ export const getSkills = (categoryId) =>
 export const getUserReviews = (userId) => api.get(`/reviews/${userId}`);
 export const createReview = (data) => api.post('/reviews', data);
 
+// Follows
+export const followUser = (userId) => api.post(`/follow/${userId}`);
+export const unfollowUser = (userId) => api.delete(`/follow/${userId}`);
+export const checkFollow = (userId) => api.get(`/follow/check/${userId}`);
+export const getFollowers = (userId) => api.get(`/followers/${userId}`);
+export const getFollowing = (userId) => api.get(`/following/${userId}`);
+export const getFollowCounts = (userId) => api.get(`/follow-counts/${userId}`);
+
+// Contracts
+export const getMyContracts = () => api.get('/contracts/my');
+export const confirmContract = (id) => api.put(`/contracts/${id}/confirm`);
+
 export default api;

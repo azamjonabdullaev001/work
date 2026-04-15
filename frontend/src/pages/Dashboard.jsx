@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { getMyJobs, getMyProposals, getMyPortfolio } from '../api/api';
-import { FiBriefcase, FiSend, FiDollarSign, FiEdit, FiImage, FiPlus, FiTrash2 } from 'react-icons/fi';
+import { getMyJobs, getMyProposals, getMyPortfolio, getMyContracts, confirmContract } from '../api/api';
+import { FiBriefcase, FiSend, FiDollarSign, FiEdit, FiImage, FiPlus, FiTrash2, FiCheckCircle, FiFileText } from 'react-icons/fi';
 import { deleteJob } from '../api/api';
 import { toast } from 'react-toastify';
 
@@ -11,6 +11,7 @@ const Dashboard = () => {
   const [myJobs, setMyJobs] = useState([]);
   const [myProposals, setMyProposals] = useState([]);
   const [portfolio, setPortfolio] = useState([]);
+  const [contracts, setContracts] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -20,6 +21,9 @@ const Dashboard = () => {
   const loadData = async () => {
     setLoading(true);
     try {
+      const contractsRes = await getMyContracts();
+      if (contractsRes.data.success) setContracts(contractsRes.data.data);
+
       if (user?.role === 'client') {
         const res = await getMyJobs();
         if (res.data.success) setMyJobs(res.data.data);
@@ -33,6 +37,20 @@ const Dashboard = () => {
       }
     } catch {} finally {
       setLoading(false);
+    }
+  };
+
+  const handleConfirmContract = async (contractId) => {
+    try {
+      const res = await confirmContract(contractId);
+      if (res.data.success) {
+        toast.success('Контракт подтверждён!');
+        setContracts(prev =>
+          prev.map(c => c.id === contractId ? { ...c, ...res.data.data } : c)
+        );
+      }
+    } catch {
+      toast.error('Ошибка подтверждения');
     }
   };
 
@@ -83,6 +101,71 @@ const Dashboard = () => {
             )}
           </div>
         </div>
+
+        {/* Contracts */}
+        {contracts.length > 0 && (
+          <div className="dashboard-section">
+            <h2><FiFileText /> Контракты ({contracts.length})</h2>
+            <div className="table-responsive">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Проект</th>
+                    <th>Партнёр</th>
+                    <th>Сумма</th>
+                    <th>Статус</th>
+                    <th>Подтверждение</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {contracts.map(c => {
+                    const isClient = user.id === c.client_id;
+                    const myConfirmed = isClient ? c.client_confirmed : c.freelancer_confirmed;
+                    const partnerConfirmed = isClient ? c.freelancer_confirmed : c.client_confirmed;
+                    const partnerName = isClient ? c.freelancer_name : c.client_name;
+
+                    return (
+                      <tr key={c.id}>
+                        <td><Link to={`/jobs/${c.job_id}`} className="table-link">{c.job_title}</Link></td>
+                        <td>{partnerName}</td>
+                        <td>${c.amount}</td>
+                        <td>
+                          <span className={`badge badge-${c.status}`}>
+                            {c.status === 'active' ? 'Активен' : c.status === 'pending' ? 'Ожидание' : c.status}
+                          </span>
+                        </td>
+                        <td>
+                          {c.status === 'active' ? (
+                            <span style={{ color: 'var(--success)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <FiCheckCircle /> Обе стороны подтвердили
+                            </span>
+                          ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                              <div style={{ fontSize: '13px', color: 'var(--gray-500)' }}>
+                                Вы: {myConfirmed ? '✅ Подтверждено' : '⏳ Не подтверждено'}
+                              </div>
+                              <div style={{ fontSize: '13px', color: 'var(--gray-500)' }}>
+                                Партнёр: {partnerConfirmed ? '✅ Подтверждено' : '⏳ Не подтверждено'}
+                              </div>
+                              {!myConfirmed && (
+                                <button
+                                  className="btn btn-success btn-xs"
+                                  onClick={() => handleConfirmContract(c.id)}
+                                >
+                                  <FiCheckCircle /> Подтвердить начало работы
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
         {/* Client Dashboard */}
         {user.role === 'client' && (

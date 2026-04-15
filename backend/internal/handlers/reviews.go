@@ -26,9 +26,9 @@ func (h *ReviewHandler) CreateReview(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Rating < 1 || req.Rating > 5 {
+	if req.Rating < 1 || req.Rating > 10 {
 		writeJSON(w, http.StatusBadRequest, models.APIResponse{
-			Success: false, Error: "Rating must be between 1 and 5",
+			Success: false, Error: "Rating must be between 1 and 10",
 		})
 		return
 	}

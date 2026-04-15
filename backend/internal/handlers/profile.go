@@ -307,7 +307,9 @@ func (h *ProfileHandler) GetFeaturedFreelancers(w http.ResponseWriter, r *http.R
 	categoryID := query.Get("category_id")
 
 	baseQuery := `
-		SELECT DISTINCT u.id, u.first_name, u.last_name, u.patronymic, u.pinfl, u.phone, u.avatar_url, u.role, u.title, u.bio, u.hourly_rate, u.location, u.created_at, u.updated_at
+		SELECT DISTINCT u.id, u.first_name, u.last_name, u.patronymic, u.pinfl, u.phone, u.avatar_url, u.role, u.title, u.bio, u.hourly_rate, u.location, u.created_at, u.updated_at,
+			COALESCE((SELECT AVG(rating) FROM reviews WHERE reviewee_id = u.id), 0) as avg_rating,
+			(SELECT COUNT(*) FROM reviews WHERE reviewee_id = u.id) as review_count
 		FROM users u
 		JOIN user_skills us ON u.id = us.user_id
 		JOIN skills s ON us.skill_id = s.id
@@ -324,7 +326,7 @@ func (h *ProfileHandler) GetFeaturedFreelancers(w http.ResponseWriter, r *http.R
 		argIdx++
 	}
 
-	baseQuery += fmt.Sprintf(` ORDER BY u.created_at DESC LIMIT $%d`, argIdx)
+	baseQuery += fmt.Sprintf(` ORDER BY avg_rating DESC, review_count DESC, u.created_at DESC LIMIT $%d`, argIdx)
 	args = append(args, 12)
 
 	rows, err := h.DB.Query(baseQuery, args...)
@@ -339,14 +341,12 @@ func (h *ProfileHandler) GetFeaturedFreelancers(w http.ResponseWriter, r *http.R
 	var users []models.User
 	for rows.Next() {
 		var u models.User
-		if err := rows.Scan(&u.ID, &u.FirstName, &u.LastName, &u.Patronymic, &u.PINFL, &u.Phone, &u.AvatarURL, &u.Role, &u.Title, &u.Bio, &u.HourlyRate, &u.Location, &u.CreatedAt, &u.UpdatedAt); err == nil {
+		var avgRating float64
+		var reviewCount int
+		if err := rows.Scan(&u.ID, &u.FirstName, &u.LastName, &u.Patronymic, &u.PINFL, &u.Phone, &u.AvatarURL, &u.Role, &u.Title, &u.Bio, &u.HourlyRate, &u.Location, &u.CreatedAt, &u.UpdatedAt, &avgRating, &reviewCount); err == nil {
 			u.Skills = getUserSkills(h.DB, u.ID)
-			var avgRating sql.NullFloat64
-			var reviewCount int
-			h.DB.QueryRow(`SELECT COALESCE(AVG(rating), 0), COUNT(*) FROM reviews WHERE reviewee_id = $1`, u.ID).Scan(&avgRating, &reviewCount)
-			if avgRating.Valid {
-				r := avgRating.Float64
-				u.Rating = &r
+			if avgRating > 0 {
+				u.Rating = &avgRating
 			}
 			u.Reviews = reviewCount
 			users = append(users, u)

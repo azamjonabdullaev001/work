@@ -67,5 +67,54 @@ func runMigrations(db *sql.DB) {
 		log.Printf("Migration (category icons): %v", err)
 	}
 
+	// Update rating constraint from 1-5 to 1-10
+	_, err = db.Exec(`
+		DO $$
+		BEGIN
+			IF EXISTS (
+				SELECT 1 FROM information_schema.check_constraints
+				WHERE constraint_name = 'reviews_rating_check'
+				AND check_clause LIKE '%5%'
+			) THEN
+				ALTER TABLE reviews DROP CONSTRAINT reviews_rating_check;
+				ALTER TABLE reviews ADD CONSTRAINT reviews_rating_check CHECK (rating >= 1 AND rating <= 10);
+			END IF;
+		END $$;
+	`)
+	if err != nil {
+		log.Printf("Migration (rating 1-10): %v", err)
+	}
+
+	// Create follows table
+	_, err = db.Exec(`
+		CREATE TABLE IF NOT EXISTS follows (
+			id SERIAL PRIMARY KEY,
+			follower_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			following_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			created_at TIMESTAMP DEFAULT NOW(),
+			UNIQUE(follower_id, following_id)
+		);
+		CREATE INDEX IF NOT EXISTS idx_follows_follower ON follows(follower_id);
+		CREATE INDEX IF NOT EXISTS idx_follows_following ON follows(following_id);
+	`)
+	if err != nil {
+		log.Printf("Migration (follows): %v", err)
+	}
+
+	// Add confirmation fields to contracts
+	_, err = db.Exec(`
+		DO $$
+		BEGIN
+			IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'contracts' AND column_name = 'client_confirmed') THEN
+				ALTER TABLE contracts ADD COLUMN client_confirmed BOOLEAN DEFAULT FALSE;
+				ALTER TABLE contracts ADD COLUMN freelancer_confirmed BOOLEAN DEFAULT FALSE;
+				ALTER TABLE contracts ADD COLUMN status VARCHAR(20) DEFAULT 'pending';
+			END IF;
+		END $$;
+	`)
+	if err != nil {
+		log.Printf("Migration (contract confirmation): %v", err)
+	}
+
 	log.Println("Database migrations checked")
 }

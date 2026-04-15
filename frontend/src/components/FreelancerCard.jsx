@@ -23,7 +23,7 @@ const FreelancerCard = ({ freelancer }) => {
           <div className="freelancer-meta">
             {freelancer.rating > 0 && (
               <span className="rating">
-                <FiStar className="star-icon" /> {freelancer.rating?.toFixed(1)} ({freelancer.reviews_count})
+                <FiStar className="star-icon" /> {freelancer.rating?.toFixed(1)}/10 ({freelancer.reviews_count})
               </span>
             )}
             {freelancer.location && (

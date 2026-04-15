@@ -14,9 +14,9 @@ const JobCard = ({ job }) => {
   };
 
   return (
-    <div className="job-card">
+    <Link to={`/jobs/${job.id}`} className="job-card" style={{ textDecoration: 'none', color: 'inherit', cursor: 'pointer' }}>
       <div className="job-card-header">
-        <Link to={`/jobs/${job.id}`} className="job-title">{job.title}</Link>
+        <span className="job-title">{job.title}</span>
         <span className="job-time"><FiClock /> {timeAgo(job.created_at)}</span>
       </div>
 
@@ -55,7 +55,7 @@ const JobCard = ({ job }) => {
       {job.category && (
         <span className="job-category">{job.category.name}</span>
       )}
-    </div>
+    </Link>
   );
 };
 
