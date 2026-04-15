@@ -3,6 +3,7 @@ package handlers
 import (
 	"database/sql"
 	"encoding/json"
+	"log"
 	"net/http"
 	"time"
 	"unicode/utf8"
@@ -108,6 +109,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		&user.Location, &user.CreatedAt, &user.UpdatedAt,
 	)
 	if err != nil {
+		log.Printf("Register INSERT error: %v", err)
 		writeJSON(w, http.StatusInternalServerError, models.APIResponse{
 			Success: false, Error: "Failed to create user",
 		})
