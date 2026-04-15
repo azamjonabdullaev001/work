@@ -2018,44 +2018,6 @@ img {
   }
 }
 
-/* ===== MUSIC CONTROL ===== */
-.music-control {
-  position: fixed;
-  bottom: 24px;
-  left: 24px;
-  z-index: 1000;
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  background: rgba(8, 18, 38, 0.9);
-  border: 1px solid rgba(0, 212, 255, 0.4);
-  color: var(--neon-blue);
-  font-size: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: var(--transition);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  box-shadow: 0 0 15px rgba(0, 212, 255, 0.2);
-}
-
-.music-control:hover {
-  box-shadow: var(--neon-glow);
-  border-color: var(--neon-blue);
-  transform: scale(1.1);
-}
-
-.music-control.playing {
-  animation: musicPulse 2s ease-in-out infinite;
-}
-
-@keyframes musicPulse {
-  0%, 100% { box-shadow: 0 0 15px rgba(0, 212, 255, 0.2); }
-  50% { box-shadow: 0 0 25px rgba(0, 212, 255, 0.5), 0 0 50px rgba(0, 212, 255, 0.2); }
-}
-
 /* ===== NEON GLOW ANIMATIONS ===== */
 @keyframes neonPulse {
   0%, 100% { opacity: 0.6; }
