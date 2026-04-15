@@ -1,16 +1,17 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 const UnicornBackground = ({ projectId, dpi = 1.5, scale = 1 }) => {
   const containerRef = useRef(null);
   const sceneRef = useRef(null);
+  const initedRef = useRef(false);
+  const [fallback, setFallback] = useState(false);
 
   useEffect(() => {
     let destroyed = false;
 
     const loadAndInit = () => {
-      if (!containerRef.current || destroyed) return;
+      if (!containerRef.current || destroyed || initedRef.current) return;
 
-      // Check if the script is already loaded
       if (window.UnicornStudio) {
         initScene();
         return;
@@ -21,16 +22,16 @@ const UnicornBackground = ({ projectId, dpi = 1.5, scale = 1 }) => {
       script.onload = () => {
         if (!destroyed) initScene();
       };
+      script.onerror = () => {
+        console.error('Failed to load UnicornStudio SDK');
+        setFallback(true);
+      };
       document.head.appendChild(script);
     };
 
     const initScene = () => {
-      if (!window.UnicornStudio || !containerRef.current || destroyed) return;
-
-      // Set the required data attributes
-      containerRef.current.setAttribute('data-us-project', projectId);
-      if (dpi) containerRef.current.setAttribute('data-us-dpi', String(dpi));
-      if (scale) containerRef.current.setAttribute('data-us-scale', String(scale));
+      if (!window.UnicornStudio || !containerRef.current || destroyed || initedRef.current) return;
+      initedRef.current = true;
 
       window.UnicornStudio.addScene({
         element: containerRef.current,
@@ -39,13 +40,23 @@ const UnicornBackground = ({ projectId, dpi = 1.5, scale = 1 }) => {
         scale: scale,
         fps: 60,
         production: true,
+        interactivity: {
+          mouse: {
+            disableMobile: false,
+            disabled: false,
+          },
+        },
       }).then((scene) => {
         if (!destroyed) {
           sceneRef.current = scene;
         } else if (scene && scene.destroy) {
           scene.destroy();
         }
-      }).catch(() => {});
+      }).catch((err) => {
+        console.error('UnicornStudio scene error:', err);
+        initedRef.current = false;
+        setFallback(true);
+      });
     };
 
     loadAndInit();
@@ -60,10 +71,13 @@ const UnicornBackground = ({ projectId, dpi = 1.5, scale = 1 }) => {
   }, [projectId, dpi, scale]);
 
   return (
-    <div
-      ref={containerRef}
-      style={{ width: '100vw', height: '100vh' }}
-    />
+    <>
+      <div
+        ref={containerRef}
+        style={{ width: '100vw', height: '100vh', display: fallback ? 'none' : 'block' }}
+      />
+      {fallback && <div className="animated-bg-fallback" />}
+    </>
   );
 };
 
