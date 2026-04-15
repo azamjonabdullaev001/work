@@ -4,11 +4,9 @@ WORKDIR /app
 
 RUN apk add --no-cache git
 
-COPY go.mod ./
-RUN go mod tidy && go mod download
-
 COPY . .
 
+RUN go mod tidy && go mod download
 RUN CGO_ENABLED=0 GOOS=linux go build -o /freelance-api ./cmd/main.go
 
 FROM alpine:3.19
