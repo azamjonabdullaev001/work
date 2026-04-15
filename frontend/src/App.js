@@ -3,6 +3,7 @@ import { Routes, Route } from 'react-router-dom';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import UnicornBackground from './components/UnicornBackground';
+import MusicPlayer from './components/MusicPlayer';
 
 import Header from './components/Header';
 import Footer from './components/Footer';
@@ -52,6 +53,7 @@ function App() {
         <Footer />
       </div>
       <ToastContainer position="bottom-right" autoClose={3000} />
+      <MusicPlayer />
     </div>
   );
 }
