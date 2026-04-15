@@ -4,45 +4,45 @@ import { FiVolume2, FiVolumeX } from 'react-icons/fi';
 const MusicPlayer = () => {
   const audioRef = useRef(null);
   const [playing, setPlaying] = useState(false);
-  const [userInteracted, setUserInteracted] = useState(false);
 
   useEffect(() => {
     const audio = new Audio('/bg-music.mp3');
     audio.loop = true;
-    audio.volume = 0.3;
+    audio.volume = 0;
     audioRef.current = audio;
 
-    // Try autoplay after 3 seconds
-    const timer = setTimeout(() => {
-      audio.play().then(() => {
-        setPlaying(true);
-        setUserInteracted(true);
-      }).catch(() => {
-        // Autoplay blocked by browser — wait for user click
-        setUserInteracted(false);
-      });
-    }, 3000);
-
-    // If autoplay blocked, start on first user interaction
-    const handleFirstInteraction = () => {
-      if (!audioRef.current.paused) return;
-      audioRef.current.play().then(() => {
-        setPlaying(true);
-        setUserInteracted(true);
-      }).catch(() => {});
-      document.removeEventListener('click', handleFirstInteraction);
+    const fadeIn = () => {
+      let vol = 0;
+      const fade = setInterval(() => {
+        vol = Math.min(vol + 0.01, 0.3);
+        audio.volume = vol;
+        if (vol >= 0.3) clearInterval(fade);
+      }, 50);
     };
 
-    const interactionTimer = setTimeout(() => {
-      if (!userInteracted) {
-        document.addEventListener('click', handleFirstInteraction);
-      }
-    }, 3500);
+    // Strategy 1: Try normal autoplay immediately
+    const tryPlay = () => {
+      audio.play().then(() => {
+        setPlaying(true);
+        fadeIn();
+      }).catch(() => {
+        // Strategy 2: Use interaction events (any touch/click/key/scroll)
+        const events = ['click', 'touchstart', 'keydown', 'scroll'];
+        const handler = () => {
+          audio.play().then(() => {
+            setPlaying(true);
+            fadeIn();
+          }).catch(() => {});
+          events.forEach(e => document.removeEventListener(e, handler));
+        };
+        events.forEach(e => document.addEventListener(e, handler, { once: false }));
+      });
+    };
+
+    const timer = setTimeout(tryPlay, 1000);
 
     return () => {
       clearTimeout(timer);
-      clearTimeout(interactionTimer);
-      document.removeEventListener('click', handleFirstInteraction);
       audio.pause();
       audio.src = '';
     };
@@ -56,6 +56,7 @@ const MusicPlayer = () => {
       audio.pause();
       setPlaying(false);
     } else {
+      audio.volume = 0.3;
       audio.play().then(() => setPlaying(true)).catch(() => {});
     }
   };
