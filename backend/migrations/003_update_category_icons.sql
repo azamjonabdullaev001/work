@@ -1,0 +1,11 @@
+-- Remove emoji icons from categories, replace with text keys
+UPDATE categories SET icon = 'web' WHERE slug = 'web-development';
+UPDATE categories SET icon = 'mobile' WHERE slug = 'mobile-development';
+UPDATE categories SET icon = 'design' WHERE slug = 'design';
+UPDATE categories SET icon = '3d' WHERE slug = '3d-modeling';
+UPDATE categories SET icon = 'media' WHERE slug = 'photo-video';
+UPDATE categories SET icon = 'marketing' WHERE slug = 'marketing';
+UPDATE categories SET icon = 'writing' WHERE slug = 'writing';
+UPDATE categories SET icon = 'admin' WHERE slug = 'admin-support';
+UPDATE categories SET icon = 'ai' WHERE slug = 'data-science';
+UPDATE categories SET icon = 'devops' WHERE slug = 'devops';

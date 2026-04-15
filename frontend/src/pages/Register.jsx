@@ -63,8 +63,8 @@ const Register = () => {
     <div className="auth-page">
       <div className="auth-card auth-card-wide">
         <div className="auth-header">
-          <h1>Регистрация</h1>
-          <p>Создайте аккаунт и начните работать</p>
+          <h1>Создание аккаунта</h1>
+          <p>Заполните форму для регистрации на платформе</p>
         </div>
 
         {/* Role Selector */}

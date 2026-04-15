@@ -53,7 +53,7 @@ const JobCard = ({ job }) => {
       </div>
 
       {job.category && (
-        <span className="job-category">{job.category.icon} {job.category.name}</span>
+        <span className="job-category">{job.category.name}</span>
       )}
     </div>
   );

@@ -116,16 +116,16 @@ CREATE TABLE reviews (
 
 -- Начальные категории
 INSERT INTO categories (name, slug, icon) VALUES
-    ('Веб-разработка', 'web-development', '💻'),
-    ('Мобильная разработка', 'mobile-development', '📱'),
-    ('Дизайн и креатив', 'design', '🎨'),
-    ('3D-моделирование', '3d-modeling', '🧊'),
-    ('Фото и видео', 'photo-video', '📸'),
-    ('Маркетинг', 'marketing', '📈'),
-    ('Написание текстов', 'writing', '✍️'),
-    ('Администрирование', 'admin-support', '📋'),
-    ('Data Science и AI', 'data-science', '🤖'),
-    ('DevOps и облако', 'devops', '☁️');
+    ('Веб-разработка', 'web-development', 'web'),
+    ('Мобильная разработка', 'mobile-development', 'mobile'),
+    ('Дизайн и креатив', 'design', 'design'),
+    ('3D-моделирование', '3d-modeling', '3d'),
+    ('Фото и видео', 'photo-video', 'media'),
+    ('Маркетинг', 'marketing', 'marketing'),
+    ('Написание текстов', 'writing', 'writing'),
+    ('Администрирование', 'admin-support', 'admin'),
+    ('Data Science и AI', 'data-science', 'ai'),
+    ('DevOps и облако', 'devops', 'devops');
 
 -- Начальные навыки
 INSERT INTO skills (name, category_id) VALUES

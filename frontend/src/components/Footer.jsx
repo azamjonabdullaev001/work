@@ -8,7 +8,7 @@ const Footer = () => {
         <div className="footer-grid">
           <div className="footer-col">
             <h4>FreelanceHub</h4>
-            <p>Платформа для фрилансеров и заказчиков. Найдите лучших специалистов или интересные проекты.</p>
+            <p>Профессиональная платформа для поиска специалистов и размещения проектов.</p>
           </div>
           <div className="footer-col">
             <h4>Для заказчиков</h4>

@@ -37,8 +37,8 @@ const Login = () => {
     <div className="auth-page">
       <div className="auth-card">
         <div className="auth-header">
-          <h1>Вход</h1>
-          <p>Рады видеть вас снова!</p>
+          <h1>Вход в аккаунт</h1>
+          <p>Введите данные для доступа к платформе</p>
         </div>
 
         <form onSubmit={handleSubmit} className="auth-form">
