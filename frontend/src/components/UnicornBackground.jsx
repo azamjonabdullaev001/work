@@ -18,9 +18,11 @@ const UnicornBackground = ({ projectId, dpi = 1.5, scale = 1 }) => {
       }
 
       const script = document.createElement('script');
-      script.src = '/unicornStudio.umd.js';
+      script.src = 'https://cdn.jsdelivr.net/gh/hiunicornstudio/unicornstudio.js@2.1.9/dist/unicornStudio.umd.js';
+      script.crossOrigin = 'anonymous';
       script.onload = () => {
-        if (!destroyed) initScene();
+        if (!destroyed && window.UnicornStudio) initScene();
+        else if (!destroyed) setFallback(true);
       };
       script.onerror = () => {
         console.error('Failed to load UnicornStudio SDK');
