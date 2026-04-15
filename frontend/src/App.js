@@ -2,7 +2,6 @@ import React from 'react';
 import { Routes, Route } from 'react-router-dom';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import UnicornScene from 'unicornstudio-react';
 
 import Header from './components/Header';
 import Footer from './components/Footer';
@@ -24,15 +23,14 @@ function App() {
   return (
     <div className="app">
       {/* Fixed animated background */}
-      <div className="unicorn-bg">
-        <UnicornScene
-          projectId="EoUokms2ZykPAL03qwnQ"
-          width="100vw"
-          height="100vh"
-          scale={1}
-          dpi={1.5}
-          sdkUrl="https://cdn.jsdelivr.net/gh/hiunicornstudio/unicornstudio.js@2.1.9/dist/unicornStudio.umd.js"
-        />
+      <div className="animated-bg">
+        <div className="animated-bg-layer"></div>
+        <div className="animated-bg-orbs">
+          <div className="orb orb-1"></div>
+          <div className="orb orb-2"></div>
+          <div className="orb orb-3"></div>
+          <div className="orb orb-4"></div>
+        </div>
       </div>
 
       <div className="app-content">
