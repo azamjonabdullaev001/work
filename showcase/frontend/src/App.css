@@ -1,0 +1,349 @@
+/* ── Reset & base ────────────────────────────────────── */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: #0d1117;
+  color: #c9d1d9;
+  line-height: 1.6;
+}
+
+/* ── Header ──────────────────────────────────────────── */
+.app-header {
+  background: #161b22;
+  border-bottom: 1px solid #30363d;
+  padding: 12px 24px;
+}
+
+.app-header .logo {
+  color: #58a6ff;
+  text-decoration: none;
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.app-main {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+/* ── Buttons ─────────────────────────────────────────── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  background: #21262d;
+  color: #c9d1d9;
+  cursor: pointer;
+  font-size: 0.875rem;
+  transition: background 0.15s;
+}
+
+.btn:hover {
+  background: #30363d;
+}
+
+.btn-primary {
+  background: #238636;
+  border-color: #2ea043;
+  color: #fff;
+}
+
+.btn-primary:hover {
+  background: #2ea043;
+}
+
+/* ── Cards ───────────────────────────────────────────── */
+.card {
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 8px;
+  padding: 16px;
+}
+
+/* ── Project List ────────────────────────────────────── */
+.project-list-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.project-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px;
+}
+
+.project-card {
+  composes: card;
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 8px;
+  padding: 16px;
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 0.15s;
+}
+
+.project-card:hover {
+  border-color: #58a6ff;
+}
+
+.project-card h3 {
+  color: #58a6ff;
+  margin-bottom: 8px;
+}
+
+.project-card .meta {
+  font-size: 0.8rem;
+  color: #8b949e;
+}
+
+/* ── Upload modal ────────────────────────────────────── */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.modal {
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 12px;
+  padding: 24px;
+  width: 440px;
+  max-width: 90vw;
+}
+
+.modal h2 {
+  margin-bottom: 16px;
+}
+
+.modal input[type="text"],
+.modal input[type="file"] {
+  width: 100%;
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  background: #0d1117;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  color: #c9d1d9;
+  font-size: 0.9rem;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
+/* ── Project Detail layout ───────────────────────────── */
+.detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.detail-header h1 {
+  font-size: 1.5rem;
+}
+
+.detail-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.detail-actions select {
+  padding: 8px 12px;
+  background: #0d1117;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  color: #c9d1d9;
+  font-size: 0.875rem;
+}
+
+.detail-body {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 16px;
+  min-height: 500px;
+}
+
+@media (max-width: 768px) {
+  .detail-body {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── File tree ───────────────────────────────────────── */
+.file-tree {
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 8px;
+  padding: 12px;
+  overflow-y: auto;
+  max-height: 70vh;
+  font-size: 0.85rem;
+}
+
+.tree-item {
+  cursor: pointer;
+  padding: 3px 4px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.tree-item:hover {
+  background: #21262d;
+}
+
+.tree-item.active {
+  background: #1f6feb33;
+  color: #58a6ff;
+}
+
+.tree-dir {
+  font-weight: 600;
+  user-select: none;
+}
+
+.tree-children {
+  padding-left: 16px;
+}
+
+/* ── Preview ─────────────────────────────────────────── */
+.preview-panel {
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.preview-panel .tab-bar {
+  display: flex;
+  border-bottom: 1px solid #30363d;
+}
+
+.preview-panel .tab {
+  padding: 8px 16px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  border-bottom: 2px solid transparent;
+  color: #8b949e;
+}
+
+.preview-panel .tab.active {
+  color: #58a6ff;
+  border-bottom-color: #58a6ff;
+}
+
+.preview-iframe {
+  width: 100%;
+  height: 100%;
+  min-height: 450px;
+  border: none;
+  background: #fff;
+}
+
+/* ── Code viewer ─────────────────────────────────────── */
+.code-viewer {
+  padding: 16px;
+  overflow: auto;
+  max-height: 60vh;
+  font-family: "Fira Code", "Cascadia Code", monospace;
+  font-size: 0.82rem;
+  white-space: pre-wrap;
+  word-break: break-all;
+  background: #0d1117;
+}
+
+/* ── README ──────────────────────────────────────────── */
+.readme-section {
+  margin-top: 20px;
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 8px;
+  padding: 24px;
+}
+
+.readme-section h2 {
+  margin-bottom: 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #30363d;
+}
+
+.readme-content {
+  line-height: 1.7;
+}
+
+.readme-content h1,
+.readme-content h2,
+.readme-content h3 {
+  margin-top: 1em;
+  margin-bottom: 0.5em;
+  color: #e6edf3;
+}
+
+.readme-content a {
+  color: #58a6ff;
+}
+
+.readme-content code {
+  background: #0d1117;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.9em;
+}
+
+.readme-content pre {
+  background: #0d1117;
+  padding: 16px;
+  border-radius: 6px;
+  overflow-x: auto;
+}
+
+.readme-content img {
+  max-width: 100%;
+}
+
+/* ── Empty state ─────────────────────────────────────── */
+.empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: #8b949e;
+}
+
+.empty-state h2 {
+  font-size: 1.3rem;
+  margin-bottom: 8px;
+  color: #c9d1d9;
+}
+
+/* ── Spinner ─────────────────────────────────────────── */
+.spinner {
+  text-align: center;
+  padding: 40px;
+  color: #8b949e;
+}
