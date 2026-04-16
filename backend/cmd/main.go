@@ -25,6 +25,9 @@ func main() {
 	if err := os.MkdirAll("./uploads", 0755); err != nil {
 		log.Fatalf("Failed to create uploads directory: %v", err)
 	}
+	if err := os.MkdirAll("./uploads/projects", 0755); err != nil {
+		log.Fatalf("Failed to create projects directory: %v", err)
+	}
 
 	router := routes.Setup(db, cfg)
 

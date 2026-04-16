@@ -69,6 +69,11 @@ export const createPortfolioItem = (formData) =>
   });
 export const updatePortfolioItem = (id, data) => api.put(`/portfolio/${id}`, data);
 export const deletePortfolioItem = (id) => api.delete(`/portfolio/${id}`);
+export const getPortfolioItem = (id) => api.get(`/portfolio/item/${id}`);
+export const getUserPortfolio = (userId) => api.get(`/portfolio/user/${userId}`);
+export const getProjectPreviewUrl = (id, filePath = 'index.html') =>
+  `${API_URL}/portfolio/${id}/preview/${filePath}`;
+export const getProjectDownloadUrl = (id) => `${API_URL}/portfolio/${id}/download`;
 
 // Skills & Categories
 export const getCategories = () => api.get('/categories');

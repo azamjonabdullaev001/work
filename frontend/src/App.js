@@ -20,6 +20,7 @@ import FreelancerProfile from './pages/FreelancerProfile';
 import Dashboard from './pages/Dashboard';
 import EditProfile from './pages/EditProfile';
 import MyPortfolio from './pages/MyPortfolio';
+import ProjectViewer from './pages/ProjectViewer';
 
 function App() {
   return (
@@ -48,6 +49,7 @@ function App() {
             <Route path="/edit-profile" element={<ProtectedRoute><EditProfile /></ProtectedRoute>} />
             <Route path="/create-job" element={<ProtectedRoute><CreateJob /></ProtectedRoute>} />
             <Route path="/my-portfolio" element={<ProtectedRoute><MyPortfolio /></ProtectedRoute>} />
+            <Route path="/project/:id" element={<ProjectViewer />} />
           </Routes>
         </main>
         <Footer />

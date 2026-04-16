@@ -64,6 +64,10 @@ func Setup(db *sql.DB, cfg *config.Config) *chi.Mux {
 		r.Get("/followers/{id}", followHandler.GetFollowers)
 		r.Get("/following/{id}", followHandler.GetFollowing)
 		r.Get("/follow-counts/{id}", followHandler.GetFollowCounts)
+		r.Get("/portfolio/item/{id}", portfolioHandler.GetPortfolioItem)
+		r.Get("/portfolio/user/{id}", portfolioHandler.GetUserPortfolio)
+		r.Get("/portfolio/{id}/preview/*", portfolioHandler.PreviewProjectFile)
+		r.Get("/portfolio/{id}/download", portfolioHandler.DownloadProject)
 
 		// Protected routes
 		r.Group(func(r chi.Router) {
