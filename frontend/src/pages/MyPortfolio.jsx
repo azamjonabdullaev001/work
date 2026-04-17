@@ -20,9 +20,7 @@ const MyPortfolio = () => {
 
   const navigate = useNavigate();
 
-  useEffect(() => {
-    loadPortfolio();
-  }, []);
+  const loadPortfolio = async () => {
     try {
       const res = await getMyPortfolio();
       if (res.data.success) setItems(res.data.data);
@@ -30,6 +28,10 @@ const MyPortfolio = () => {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    loadPortfolio();
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -41,15 +43,15 @@ const MyPortfolio = () => {
       formData.append('title', form.title);
       if (form.description) formData.append('description', form.description);
       if (form.project_url) formData.append('project_url', form.project_url);
+      if (form.github_url) formData.append('github_url', form.github_url);
       formData.append('is_featured', form.is_featured);
-  const loadPortfolio = async () => {
+      if (form.image) formData.append('image', form.image);
 
       const res = await createPortfolioItem(formData);
       if (res.data.success) {
         toast.success('Проект добавлен!');
         setShowForm(false);
-      if (form.image) formData.append('image', form.image);
-      if (form.github_url) formData.append('github_url', form.github_url);
+        setForm({ title: '', description: '', project_url: '', github_url: '', is_featured: false, image: null });
         loadPortfolio();
       }
     } catch (err) {
@@ -59,7 +61,7 @@ const MyPortfolio = () => {
     }
   };
 
-        setForm({ title: '', description: '', project_url: '', github_url: '', is_featured: false, image: null });
+  const handleDelete = async (id) => {
     if (!window.confirm('Удалить этот проект?')) return;
     try {
       await deletePortfolioItem(id);
@@ -69,8 +71,6 @@ const MyPortfolio = () => {
       toast.error('Ошибка удаления');
     }
   };
-
-  const handleDelete = async (id) => {
 
   if (loading) return <div className="loading-screen"><div className="spinner"></div></div>;
 
