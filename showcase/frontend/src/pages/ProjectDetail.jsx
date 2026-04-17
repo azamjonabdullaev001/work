@@ -1,38 +1,36 @@
 import React, { useEffect, useState, useCallback } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import {
   getProject,
   getFileTree,
   getReadme,
-  downloadUrl,
+  listBranches,
+  deleteProject,
 } from "../api/api";
 import FileTree from "../components/FileTree";
-import ProjectPreview, {
-  useVersionNotification,
-} from "../components/ProjectPreview";
+import ProjectPreview from "../components/ProjectPreview";
 import ReadmeViewer from "../components/ReadmeViewer";
-import UploadModal from "../components/UploadModal";
 
 export default function ProjectDetail() {
   const { projectId } = useParams();
+  const navigate = useNavigate();
 
   const [project, setProject] = useState(null);
-  const [version, setVersion] = useState(null);
+  const [branches, setBranches] = useState([]);
+  const [branch, setBranch] = useState(null);
   const [tree, setTree] = useState([]);
   const [selectedFile, setSelectedFile] = useState(null);
   const [readme, setReadme] = useState(null);
-  const [showUpload, setShowUpload] = useState(false);
   const [loading, setLoading] = useState(true);
-
-  // WebSocket: live version push
-  const latestPush = useVersionNotification(projectId);
 
   const loadProject = useCallback(async () => {
     try {
       const { data } = await getProject(projectId);
       setProject(data);
-      const latest = `v${data.latest_version}`;
-      setVersion((prev) => prev || latest);
+      setBranch((prev) => prev || data.default_branch);
+
+      const branchRes = await listBranches(projectId);
+      setBranches(branchRes.data.branches);
     } catch {
       /* empty */
     } finally {
@@ -40,38 +38,33 @@ export default function ProjectDetail() {
     }
   }, [projectId]);
 
-  // Initial load
   useEffect(() => {
     loadProject();
   }, [loadProject]);
 
-  // Auto-refresh when new version pushed via WebSocket
+  // Load tree + readme when branch changes
   useEffect(() => {
-    if (latestPush) {
-      setVersion(latestPush);
-      loadProject();
-    }
-  }, [latestPush, loadProject]);
+    if (!branch) return;
 
-  // Load tree + readme when version changes
-  useEffect(() => {
-    if (!version) return;
-
-    getFileTree(projectId, version)
+    getFileTree(projectId, branch)
       .then(({ data }) => setTree(data.tree))
       .catch(() => setTree([]));
 
-    getReadme(projectId, version)
+    getReadme(projectId, branch)
       .then(({ data }) => setReadme(data.markdown))
       .catch(() => setReadme(null));
 
     setSelectedFile(null);
-  }, [projectId, version]);
+  }, [projectId, branch]);
 
-  const handleUploaded = (result) => {
-    setShowUpload(false);
-    setVersion(result.version);
-    loadProject();
+  const handleDelete = async () => {
+    if (!window.confirm("Delete this project?")) return;
+    try {
+      await deleteProject(projectId);
+      navigate("/");
+    } catch {
+      /* empty */
+    }
   };
 
   if (loading) return <div className="spinner">Loading…</div>;
@@ -83,40 +76,43 @@ export default function ProjectDetail() {
       <div className="detail-header">
         <div>
           <h1>{project.name}</h1>
-          <span className="meta">
-            {project.versions.length} version
-            {project.versions.length !== 1 ? "s" : ""}
-          </span>
+          <a
+            href={project.github_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="meta"
+            style={{ textDecoration: "underline" }}
+          >
+            {project.github_url}
+          </a>
         </div>
 
         <div className="detail-actions">
-          {/* Version selector */}
+          {/* Branch selector */}
           <select
-            value={version || ""}
-            onChange={(e) => setVersion(e.target.value)}
+            value={branch || ""}
+            onChange={(e) => setBranch(e.target.value)}
           >
-            {project.versions.map((v) => (
-              <option key={v.version} value={v.version}>
-                {v.version} ({v.file_count} files)
+            {branches.map((b) => (
+              <option key={b} value={b}>
+                {b}
               </option>
             ))}
           </select>
 
-          {/* Download */}
+          {/* Open on GitHub */}
           <a
             className="btn"
-            href={downloadUrl(projectId, version)}
-            download
+            href={`${project.github_url}/tree/${branch}`}
+            target="_blank"
+            rel="noopener noreferrer"
           >
-            ⬇ Download ZIP
+            🔗 GitHub
           </a>
 
-          {/* Upload new version */}
-          <button
-            className="btn btn-primary"
-            onClick={() => setShowUpload(true)}
-          >
-            + New Version
+          {/* Delete */}
+          <button className="btn" onClick={handleDelete} style={{ color: "#f85149" }}>
+            🗑 Delete
           </button>
         </div>
       </div>
@@ -131,22 +127,13 @@ export default function ProjectDetail() {
 
         <ProjectPreview
           projectId={projectId}
-          version={version}
+          branch={branch}
           selectedFile={selectedFile}
         />
       </div>
 
       {/* README */}
       <ReadmeViewer markdown={readme} />
-
-      {/* Upload modal */}
-      {showUpload && (
-        <UploadModal
-          existingProjectId={projectId}
-          onClose={() => setShowUpload(false)}
-          onUploaded={handleUploaded}
-        />
-      )}
     </div>
   );
 }

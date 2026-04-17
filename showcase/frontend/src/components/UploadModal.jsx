@@ -1,46 +1,44 @@
 import React, { useState } from "react";
-import { uploadProject } from "../api/api";
+import { addProject } from "../api/api";
 
-export default function UploadModal({ onClose, onUploaded, existingProjectId }) {
+export default function AddRepoModal({ onClose, onAdded }) {
+  const [url, setUrl] = useState("");
   const [name, setName] = useState("");
-  const [file, setFile] = useState(null);
-  const [uploading, setUploading] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!file) return setError("Select a ZIP file");
-    if (!existingProjectId && !name.trim()) return setError("Enter a project name");
+    if (!url.trim()) return setError("Enter a GitHub repository URL");
 
-    setUploading(true);
+    setLoading(true);
     setError("");
     try {
-      const res = await uploadProject(file, name || "Untitled", existingProjectId);
-      onUploaded(res.data);
+      const res = await addProject(url, name);
+      onAdded(res.data);
     } catch (err) {
-      setError(err.response?.data?.detail || "Upload failed");
+      setError(err.response?.data?.detail || "Failed to add project");
     } finally {
-      setUploading(false);
+      setLoading(false);
     }
   };
 
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <h2>{existingProjectId ? "Upload New Version" : "New Project"}</h2>
+        <h2>Add GitHub Project</h2>
         <form onSubmit={handleSubmit}>
-          {!existingProjectId && (
-            <input
-              type="text"
-              placeholder="Project name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
-          )}
           <input
-            type="file"
-            accept=".zip"
-            onChange={(e) => setFile(e.target.files[0])}
+            type="url"
+            placeholder="https://github.com/owner/repo"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+          />
+          <input
+            type="text"
+            placeholder="Project name (optional)"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
           />
           {error && (
             <p style={{ color: "#f85149", fontSize: "0.85rem", marginBottom: 8 }}>
@@ -51,8 +49,8 @@ export default function UploadModal({ onClose, onUploaded, existingProjectId }) 
             <button type="button" className="btn" onClick={onClose}>
               Cancel
             </button>
-            <button type="submit" className="btn btn-primary" disabled={uploading}>
-              {uploading ? "Uploading…" : "Upload"}
+            <button type="submit" className="btn btn-primary" disabled={loading}>
+              {loading ? "Adding…" : "Add Project"}
             </button>
           </div>
         </form>

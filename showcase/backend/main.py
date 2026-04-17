@@ -1,41 +1,33 @@
 """
 Project Showcase — FastAPI Backend
-Features: ZIP upload with versioning, file tree, live preview, download, README rendering
+Features: GitHub repo integration, file tree, code preview, README rendering
+No local file storage — all content fetched from GitHub via HTTPS.
 """
 
 import json
-import os
-import shutil
-import tempfile
+import re
 import time
 import uuid
-import zipfile
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Optional
 
-import markdown
-from fastapi import (
-    FastAPI,
-    File,
-    Form,
-    HTTPException,
-    Query,
-    UploadFile,
-    WebSocket,
-    WebSocketDisconnect,
-)
+import httpx
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
-from starlette.background import BackgroundTask
+from fastapi.responses import Response
 
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
 STORAGE_DIR = Path("storage")
 METADATA_FILE = STORAGE_DIR / "projects.json"
-MAX_UPLOAD_SIZE = 50 * 1024 * 1024          # 50 MB
-MAX_FILES_IN_ZIP = 5000                      # zip-bomb guard
 ALLOWED_ORIGINS = ["http://localhost:3000"]
+GITHUB_API = "https://api.github.com"
+GITHUB_RAW = "https://raw.githubusercontent.com"
+
+# Optional: set a GitHub token for higher rate limits (60/hr without, 5000/hr with)
+# GITHUB_TOKEN = "ghp_..."
+GITHUB_TOKEN: Optional[str] = None
 
 # ---------------------------------------------------------------------------
 # App & middleware
@@ -51,30 +43,34 @@ app.add_middleware(
 )
 
 # ---------------------------------------------------------------------------
-# WebSocket connection manager (live-preview updates)
+# Shared HTTP client
 # ---------------------------------------------------------------------------
-class ConnectionManager:
-    def __init__(self):
-        self.active: Dict[str, List[WebSocket]] = {}
-
-    async def connect(self, ws: WebSocket, project_id: str):
-        await ws.accept()
-        self.active.setdefault(project_id, []).append(ws)
-
-    def disconnect(self, ws: WebSocket, project_id: str):
-        conns = self.active.get(project_id, [])
-        if ws in conns:
-            conns.remove(ws)
-
-    async def notify(self, project_id: str, message: dict):
-        for ws in list(self.active.get(project_id, [])):
-            try:
-                await ws.send_json(message)
-            except Exception:
-                self.disconnect(ws, project_id)
+_http_client: Optional[httpx.AsyncClient] = None
 
 
-manager = ConnectionManager()
+def _github_headers() -> dict:
+    h = {"Accept": "application/vnd.github.v3+json"}
+    if GITHUB_TOKEN:
+        h["Authorization"] = f"Bearer {GITHUB_TOKEN}"
+    return h
+
+
+async def gh_client() -> httpx.AsyncClient:
+    global _http_client
+    if _http_client is None or _http_client.is_closed:
+        _http_client = httpx.AsyncClient(
+            headers=_github_headers(),
+            timeout=30.0,
+            follow_redirects=True,
+        )
+    return _http_client
+
+
+@app.on_event("shutdown")
+async def _shutdown():
+    if _http_client and not _http_client.is_closed:
+        await _http_client.aclose()
+
 
 # ---------------------------------------------------------------------------
 # Metadata helpers (simple JSON file — no DB required)
@@ -96,154 +92,151 @@ def save_metadata(data: dict):
 _init_storage()
 
 # ---------------------------------------------------------------------------
-# Utility: recursive file-tree builder
+# GitHub URL parser
 # ---------------------------------------------------------------------------
-def build_file_tree(directory: Path, base: Optional[Path] = None) -> List[dict]:
-    if base is None:
-        base = directory
-    tree: list = []
-    try:
-        for item in sorted(directory.iterdir(), key=lambda p: (not p.is_dir(), p.name.lower())):
-            rel = str(item.relative_to(base)).replace("\\", "/")
-            if item.is_dir():
-                tree.append({
-                    "name": item.name,
-                    "path": rel,
-                    "type": "directory",
-                    "children": build_file_tree(item, base),
-                })
-            else:
-                tree.append({
-                    "name": item.name,
-                    "path": rel,
-                    "type": "file",
-                    "size": item.stat().st_size,
-                })
-    except PermissionError:
-        pass
-    return tree
+_GITHUB_RE = re.compile(
+    r"https?://github\.com/(?P<owner>[A-Za-z0-9_.\-]+)/(?P<repo>[A-Za-z0-9_.\-]+)"
+)
+
+
+def parse_github_url(url: str) -> tuple[str, str]:
+    """Extract (owner, repo) from a GitHub HTTPS URL."""
+    m = _GITHUB_RE.match(url.strip().rstrip("/").removesuffix(".git"))
+    if not m:
+        raise HTTPException(400, "Invalid GitHub URL. Example: https://github.com/owner/repo")
+    return m.group("owner"), m.group("repo")
+
 
 # ---------------------------------------------------------------------------
-# Security: path-traversal guard
+# GitHub API helpers
 # ---------------------------------------------------------------------------
-def safe_resolve(base: Path, user_path: str) -> Path:
-    resolved = (base / user_path).resolve()
-    if not str(resolved).startswith(str(base.resolve())):
-        raise HTTPException(status_code=403, detail="Access denied")
-    if resolved.is_symlink():
-        raise HTTPException(status_code=403, detail="Symlinks not allowed")
-    return resolved
+async def github_get(path: str) -> dict:
+    """GET request to GitHub API, returns parsed JSON."""
+    client = await gh_client()
+    resp = await client.get(f"{GITHUB_API}{path}")
+    if resp.status_code == 404:
+        raise HTTPException(404, "Not found on GitHub")
+    if resp.status_code == 403:
+        raise HTTPException(429, "GitHub API rate limit exceeded. Try again later.")
+    if resp.status_code != 200:
+        raise HTTPException(502, f"GitHub API error: {resp.status_code}")
+    return resp.json()
+
+
+async def github_get_raw(owner: str, repo: str, branch: str, file_path: str) -> bytes:
+    """Fetch raw file content from GitHub."""
+    client = await gh_client()
+    url = f"{GITHUB_RAW}/{owner}/{repo}/{branch}/{file_path}"
+    resp = await client.get(url)
+    if resp.status_code == 404:
+        raise HTTPException(404, "File not found on GitHub")
+    if resp.status_code != 200:
+        raise HTTPException(502, f"GitHub raw fetch error: {resp.status_code}")
+    return resp.content
+
 
 # ---------------------------------------------------------------------------
-# ZIP extraction with security checks
+# Recursive tree builder from GitHub flat tree
 # ---------------------------------------------------------------------------
-def extract_zip_safely(zip_bytes: bytes, dest: Path):
-    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".zip")
-    try:
-        tmp.write(zip_bytes)
-        tmp.close()
+def build_tree_from_github(items: list) -> list:
+    """Convert GitHub flat tree (recursive) into nested tree structure."""
+    root: list = []
+    dirs: dict = {}  # path → children list
 
-        with zipfile.ZipFile(tmp.name, "r") as zf:
-            names = zf.namelist()
-            if len(names) > MAX_FILES_IN_ZIP:
-                raise HTTPException(400, "ZIP contains too many files")
-            for name in names:
-                if name.startswith("/") or ".." in name:
-                    raise HTTPException(400, "Invalid file paths in ZIP")
-            zf.extractall(dest)
-    except zipfile.BadZipFile:
-        raise HTTPException(400, "Invalid ZIP file")
-    finally:
-        os.unlink(tmp.name)
+    # Sort: directories first, then alphabetical
+    files = [i for i in items if i["type"] == "blob"]
+    trees = [i for i in items if i["type"] == "tree"]
 
-    # Flatten single root-directory wrapper (common pattern)
-    items = list(dest.iterdir())
-    if len(items) == 1 and items[0].is_dir():
-        wrapper = items[0]
-        for child in list(wrapper.iterdir()):
-            shutil.move(str(child), str(dest / child.name))
-        wrapper.rmdir()
+    # Create directory nodes
+    for t in sorted(trees, key=lambda x: x["path"].lower()):
+        parts = t["path"].rsplit("/", 1)
+        node = {
+            "name": parts[-1],
+            "path": t["path"],
+            "type": "directory",
+            "children": [],
+        }
+        dirs[t["path"]] = node["children"]
+
+        parent_path = parts[0] if len(parts) > 1 else None
+        if parent_path and parent_path in dirs:
+            dirs[parent_path].append(node)
+        else:
+            root.append(node)
+
+    # Place file nodes
+    for f in sorted(files, key=lambda x: x["path"].lower()):
+        parts = f["path"].rsplit("/", 1)
+        node = {
+            "name": parts[-1],
+            "path": f["path"],
+            "type": "file",
+            "size": f.get("size", 0),
+        }
+        parent_path = parts[0] if len(parts) > 1 else None
+        if parent_path and parent_path in dirs:
+            dirs[parent_path].append(node)
+        else:
+            root.append(node)
+
+    # Sort each level: directories first, then files, alphabetically
+    def sort_nodes(nodes):
+        nodes.sort(key=lambda n: (n["type"] != "directory", n["name"].lower()))
+        for n in nodes:
+            if "children" in n:
+                sort_nodes(n["children"])
+
+    sort_nodes(root)
+    return root
 
 
 # ===================================================================
 #  API ENDPOINTS
 # ===================================================================
 
-# 1. Upload project (creates new project or new version)
+# 1. Add project by GitHub URL
 # -------------------------------------------------------------------
-@app.post("/api/projects/upload")
-async def upload_project(
-    file: UploadFile = File(...),
-    project_name: str = Form(...),
-    project_id: Optional[str] = Form(None),
-):
-    if not file.filename or not file.filename.lower().endswith(".zip"):
-        raise HTTPException(400, "Only .zip files are accepted")
+@app.post("/api/projects")
+async def add_project(body: dict):
+    github_url = body.get("github_url", "").strip()
+    project_name = body.get("project_name", "").strip()
 
-    content = await file.read()
-    if len(content) > MAX_UPLOAD_SIZE:
-        raise HTTPException(400, f"File exceeds {MAX_UPLOAD_SIZE // (1024*1024)} MB limit")
+    if not github_url:
+        raise HTTPException(400, "github_url is required")
+
+    owner, repo = parse_github_url(github_url)
+
+    # Verify the repo exists on GitHub
+    repo_info = await github_get(f"/repos/{owner}/{repo}")
+
+    if not project_name:
+        project_name = repo_info.get("name", repo)
+
+    default_branch = repo_info.get("default_branch", "main")
 
     metadata = load_metadata()
 
-    # Existing project → new version, else create fresh
-    if project_id and project_id in metadata["projects"]:
-        project = metadata["projects"][project_id]
-        version_num = project["latest_version"] + 1
-    else:
-        project_id = uuid.uuid4().hex[:12]
-        project = {
-            "id": project_id,
-            "name": project_name,
-            "created_at": time.time(),
-            "latest_version": 0,
-            "versions": [],
-        }
-        version_num = 1
+    # Check for duplicates
+    for proj in metadata["projects"].values():
+        if proj["owner"] == owner and proj["repo"] == repo:
+            raise HTTPException(409, "This repository is already added")
 
-    version_tag = f"v{version_num}"
-    version_dir = STORAGE_DIR / project_id / version_tag
-    version_dir.mkdir(parents=True, exist_ok=True)
-
-    try:
-        extract_zip_safely(content, version_dir)
-    except HTTPException:
-        shutil.rmtree(version_dir, ignore_errors=True)
-        raise
-    except Exception as exc:
-        shutil.rmtree(version_dir, ignore_errors=True)
-        raise HTTPException(500, f"Extraction failed: {exc}")
-
-    has_index = (version_dir / "index.html").exists()
-    has_readme = (version_dir / "README.md").exists()
-    file_count = sum(1 for _ in version_dir.rglob("*") if _.is_file())
-
-    version_info = {
-        "version": version_tag,
-        "uploaded_at": time.time(),
-        "has_index": has_index,
-        "has_readme": has_readme,
-        "file_count": file_count,
+    project_id = uuid.uuid4().hex[:12]
+    project = {
+        "id": project_id,
+        "name": project_name,
+        "owner": owner,
+        "repo": repo,
+        "github_url": f"https://github.com/{owner}/{repo}",
+        "default_branch": default_branch,
+        "description": repo_info.get("description", ""),
+        "created_at": time.time(),
     }
 
-    project["latest_version"] = version_num
-    project["versions"].append(version_info)
     metadata["projects"][project_id] = project
     save_metadata(metadata)
 
-    # Notify connected WebSocket clients
-    await manager.notify(project_id, {
-        "type": "new_version",
-        "version": version_tag,
-        "project_id": project_id,
-    })
-
-    return {
-        "project_id": project_id,
-        "version": version_tag,
-        "file_count": file_count,
-        "has_index": has_index,
-    }
+    return project
 
 
 # 2. List all projects
@@ -256,8 +249,9 @@ async def list_projects():
         projects.append({
             "id": proj["id"],
             "name": proj["name"],
-            "latest_version": f"v{proj['latest_version']}",
-            "version_count": len(proj["versions"]),
+            "github_url": proj["github_url"],
+            "description": proj.get("description", ""),
+            "default_branch": proj["default_branch"],
             "created_at": proj["created_at"],
         })
     return {"projects": projects}
@@ -273,115 +267,96 @@ async def get_project(project_id: str):
     return metadata["projects"][project_id]
 
 
-# 4. List versions of a project
+# 4. Delete a project
 # -------------------------------------------------------------------
-@app.get("/api/projects/{project_id}/versions")
-async def list_versions(project_id: str):
+@app.delete("/api/projects/{project_id}")
+async def delete_project(project_id: str):
     metadata = load_metadata()
     if project_id not in metadata["projects"]:
         raise HTTPException(404, "Project not found")
-    return {"versions": metadata["projects"][project_id]["versions"]}
+    del metadata["projects"][project_id]
+    save_metadata(metadata)
+    return {"ok": True}
 
 
-# 5. File tree for a specific version
+# 5. List branches of a project
 # -------------------------------------------------------------------
-@app.get("/api/projects/{project_id}/versions/{version}/tree")
-async def get_file_tree(project_id: str, version: str):
-    version_dir = STORAGE_DIR / project_id / version
-    if not version_dir.exists():
-        raise HTTPException(404, "Version not found")
-    return {"tree": build_file_tree(version_dir)}
+@app.get("/api/projects/{project_id}/branches")
+async def list_branches(project_id: str):
+    metadata = load_metadata()
+    if project_id not in metadata["projects"]:
+        raise HTTPException(404, "Project not found")
+    proj = metadata["projects"][project_id]
+    data = await github_get(f"/repos/{proj['owner']}/{proj['repo']}/branches?per_page=100")
+    branches = [b["name"] for b in data]
+    return {"branches": branches, "default": proj["default_branch"]}
 
 
-# 6. Get/download a single file
+# 6. File tree for a specific branch
 # -------------------------------------------------------------------
-@app.get("/api/projects/{project_id}/versions/{version}/files")
-async def get_file(project_id: str, version: str, path: str = Query(...)):
-    version_dir = STORAGE_DIR / project_id / version
-    if not version_dir.exists():
-        raise HTTPException(404, "Version not found")
-    target = safe_resolve(version_dir, path)
-    if not target.exists() or not target.is_file():
-        raise HTTPException(404, "File not found")
-    return FileResponse(target)
+@app.get("/api/projects/{project_id}/tree")
+async def get_file_tree(project_id: str, ref: Optional[str] = None):
+    metadata = load_metadata()
+    if project_id not in metadata["projects"]:
+        raise HTTPException(404, "Project not found")
+    proj = metadata["projects"][project_id]
+    branch = ref or proj["default_branch"]
 
-
-# 7. Download entire version as ZIP
-# -------------------------------------------------------------------
-@app.get("/api/projects/{project_id}/versions/{version}/download")
-async def download_version(project_id: str, version: str):
-    version_dir = STORAGE_DIR / project_id / version
-    if not version_dir.exists():
-        raise HTTPException(404, "Version not found")
-
-    zip_name = f"{project_id}_{version}.zip"
-    tmp_dir = tempfile.mkdtemp()
-    archive_base = os.path.join(tmp_dir, f"{project_id}_{version}")
-    shutil.make_archive(archive_base, "zip", version_dir)
-    zip_path = archive_base + ".zip"
-
-    return FileResponse(
-        zip_path,
-        media_type="application/zip",
-        filename=zip_name,
-        background=BackgroundTask(lambda: shutil.rmtree(tmp_dir, ignore_errors=True)),
+    data = await github_get(
+        f"/repos/{proj['owner']}/{proj['repo']}/git/trees/{branch}?recursive=1"
     )
+    if "tree" not in data:
+        raise HTTPException(502, "Failed to fetch file tree from GitHub")
+
+    return {"tree": build_tree_from_github(data["tree"])}
 
 
-# 8. README.md content (raw markdown + rendered HTML)
+# 7. Get a single file's content (proxied from GitHub)
 # -------------------------------------------------------------------
-@app.get("/api/projects/{project_id}/versions/{version}/readme")
-async def get_readme(project_id: str, version: str):
-    version_dir = STORAGE_DIR / project_id / version
-    readme_path = version_dir / "README.md"
-    if not readme_path.exists():
+@app.get("/api/projects/{project_id}/file")
+async def get_file(
+    project_id: str,
+    path: str = Query(...),
+    ref: Optional[str] = None,
+):
+    metadata = load_metadata()
+    if project_id not in metadata["projects"]:
+        raise HTTPException(404, "Project not found")
+    proj = metadata["projects"][project_id]
+    branch = ref or proj["default_branch"]
+
+    # Validate path — no traversal
+    if ".." in path or path.startswith("/"):
+        raise HTTPException(403, "Invalid file path")
+
+    content = await github_get_raw(proj["owner"], proj["repo"], branch, path)
+
+    # Guess content type
+    import mimetypes
+    mime, _ = mimetypes.guess_type(path)
+    if mime is None:
+        mime = "application/octet-stream"
+
+    return Response(content=content, media_type=mime)
+
+
+# 8. README.md content (raw markdown)
+# -------------------------------------------------------------------
+@app.get("/api/projects/{project_id}/readme")
+async def get_readme(project_id: str, ref: Optional[str] = None):
+    metadata = load_metadata()
+    if project_id not in metadata["projects"]:
+        raise HTTPException(404, "Project not found")
+    proj = metadata["projects"][project_id]
+    branch = ref or proj["default_branch"]
+
+    try:
+        content = await github_get_raw(proj["owner"], proj["repo"], branch, "README.md")
+        raw = content.decode("utf-8", errors="replace")
+    except HTTPException:
         raise HTTPException(404, "README.md not found")
 
-    raw = readme_path.read_text(encoding="utf-8", errors="replace")
-    html = markdown.markdown(raw, extensions=["tables", "fenced_code", "codehilite"])
-    return {"markdown": raw, "html": html}
-
-
-# 9. Preview endpoint — serves files inside an iframe-friendly context
-# -------------------------------------------------------------------
-@app.get("/api/preview/{project_id}/{version}/{file_path:path}")
-async def preview_file(project_id: str, version: str, file_path: str):
-    version_dir = STORAGE_DIR / project_id / version
-    if not version_dir.exists():
-        raise HTTPException(404, "Version not found")
-
-    if not file_path:
-        file_path = "index.html"
-
-    target = safe_resolve(version_dir, file_path)
-    if not target.exists() or not target.is_file():
-        raise HTTPException(404, "File not found")
-
-    response = FileResponse(target)
-    # Strict Content-Security-Policy for sandboxed preview
-    response.headers["Content-Security-Policy"] = (
-        "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:; "
-        "script-src 'self' 'unsafe-inline' 'unsafe-eval'; "
-        "style-src 'self' 'unsafe-inline'; "
-        "img-src 'self' data: blob:; "
-        "font-src 'self' data:; "
-        "connect-src 'none'; "
-        "frame-ancestors http://localhost:3000"
-    )
-    response.headers["X-Content-Type-Options"] = "nosniff"
-    return response
-
-
-# 10. WebSocket — live version notifications
-# -------------------------------------------------------------------
-@app.websocket("/ws/projects/{project_id}")
-async def websocket_endpoint(websocket: WebSocket, project_id: str):
-    await manager.connect(websocket, project_id)
-    try:
-        while True:
-            await websocket.receive_text()
-    except WebSocketDisconnect:
-        manager.disconnect(websocket, project_id)
+    return {"markdown": raw}
 
 
 # ---------------------------------------------------------------------------

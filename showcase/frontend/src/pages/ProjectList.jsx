@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { listProjects } from "../api/api";
-import UploadModal from "../components/UploadModal";
+import AddRepoModal from "../components/UploadModal";
 
 export default function ProjectList() {
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showUpload, setShowUpload] = useState(false);
+  const [showAdd, setShowAdd] = useState(false);
 
   const fetchProjects = async () => {
     try {
@@ -23,8 +23,8 @@ export default function ProjectList() {
     fetchProjects();
   }, []);
 
-  const handleUploaded = (result) => {
-    setShowUpload(false);
+  const handleAdded = () => {
+    setShowAdd(false);
     fetchProjects();
   };
 
@@ -34,15 +34,15 @@ export default function ProjectList() {
     <div>
       <div className="project-list-header">
         <h1>Projects</h1>
-        <button className="btn btn-primary" onClick={() => setShowUpload(true)}>
-          + New Project
+        <button className="btn btn-primary" onClick={() => setShowAdd(true)}>
+          + Add Project
         </button>
       </div>
 
       {projects.length === 0 ? (
         <div className="empty-state">
           <h2>No projects yet</h2>
-          <p>Upload a ZIP file to get started</p>
+          <p>Add a GitHub repository to get started</p>
         </div>
       ) : (
         <div className="project-grid">
@@ -50,18 +50,17 @@ export default function ProjectList() {
             <Link key={p.id} to={`/projects/${p.id}`} className="project-card">
               <h3>{p.name}</h3>
               <div className="meta">
-                {p.version_count} version{p.version_count !== 1 ? "s" : ""} ·
-                Latest: {p.latest_version}
+                {p.description && <span>{p.description}</span>}
               </div>
             </Link>
           ))}
         </div>
       )}
 
-      {showUpload && (
-        <UploadModal
-          onClose={() => setShowUpload(false)}
-          onUploaded={handleUploaded}
+      {showAdd && (
+        <AddRepoModal
+          onClose={() => setShowAdd(false)}
+          onAdded={handleAdded}
         />
       )}
     </div>
