@@ -1,7 +1,6 @@
 """
 Project Showcase — FastAPI Backend
-Features: GitHub repo integration, file tree, code preview, README rendering
-No local file storage — all content fetched from GitHub via HTTPS.
+Features: GitHub repository linking, file tree, live preview, README rendering
 """
 
 import json
@@ -9,12 +8,20 @@ import re
 import time
 import uuid
 from pathlib import Path
-from typing import Optional
+from typing import Dict, List, Optional
 
 import httpx
-from fastapi import FastAPI, HTTPException, Query
+import markdown
+from fastapi import (
+    FastAPI,
+    Form,
+    HTTPException,
+    Query,
+    WebSocket,
+    WebSocketDisconnect,
+)
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
+from fastapi.responses import RedirectResponse, StreamingResponse
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -24,10 +31,6 @@ METADATA_FILE = STORAGE_DIR / "projects.json"
 ALLOWED_ORIGINS = ["http://localhost:3000"]
 GITHUB_API = "https://api.github.com"
 GITHUB_RAW = "https://raw.githubusercontent.com"
-
-# Optional: set a GitHub token for higher rate limits (60/hr without, 5000/hr with)
-# GITHUB_TOKEN = "ghp_..."
-GITHUB_TOKEN: Optional[str] = None
 
 # ---------------------------------------------------------------------------
 # App & middleware
@@ -43,34 +46,30 @@ app.add_middleware(
 )
 
 # ---------------------------------------------------------------------------
-# Shared HTTP client
+# WebSocket connection manager (live-preview updates)
 # ---------------------------------------------------------------------------
-_http_client: Optional[httpx.AsyncClient] = None
+class ConnectionManager:
+    def __init__(self):
+        self.active: Dict[str, List[WebSocket]] = {}
+
+    async def connect(self, ws: WebSocket, project_id: str):
+        await ws.accept()
+        self.active.setdefault(project_id, []).append(ws)
+
+    def disconnect(self, ws: WebSocket, project_id: str):
+        conns = self.active.get(project_id, [])
+        if ws in conns:
+            conns.remove(ws)
+
+    async def notify(self, project_id: str, message: dict):
+        for ws in list(self.active.get(project_id, [])):
+            try:
+                await ws.send_json(message)
+            except Exception:
+                self.disconnect(ws, project_id)
 
 
-def _github_headers() -> dict:
-    h = {"Accept": "application/vnd.github.v3+json"}
-    if GITHUB_TOKEN:
-        h["Authorization"] = f"Bearer {GITHUB_TOKEN}"
-    return h
-
-
-async def gh_client() -> httpx.AsyncClient:
-    global _http_client
-    if _http_client is None or _http_client.is_closed:
-        _http_client = httpx.AsyncClient(
-            headers=_github_headers(),
-            timeout=30.0,
-            follow_redirects=True,
-        )
-    return _http_client
-
-
-@app.on_event("shutdown")
-async def _shutdown():
-    if _http_client and not _http_client.is_closed:
-        await _http_client.aclose()
-
+manager = ConnectionManager()
 
 # ---------------------------------------------------------------------------
 # Metadata helpers (simple JSON file — no DB required)
@@ -92,151 +91,114 @@ def save_metadata(data: dict):
 _init_storage()
 
 # ---------------------------------------------------------------------------
+# Utility: recursive file-tree builder
+# ---------------------------------------------------------------------------
 # GitHub URL parser
 # ---------------------------------------------------------------------------
-_GITHUB_RE = re.compile(
-    r"https?://github\.com/(?P<owner>[A-Za-z0-9_.\-]+)/(?P<repo>[A-Za-z0-9_.\-]+)"
+GITHUB_URL_RE = re.compile(
+    r"^https://github\.com/(?P<owner>[A-Za-z0-9_.-]+)/(?P<repo>[A-Za-z0-9_.-]+?)(?:\.git)?(?:/.*)?$"
 )
 
 
-def parse_github_url(url: str) -> tuple[str, str]:
-    """Extract (owner, repo) from a GitHub HTTPS URL."""
-    m = _GITHUB_RE.match(url.strip().rstrip("/").removesuffix(".git"))
+def parse_github_url(url: str) -> tuple:
+    """Returns (owner, repo) or raises HTTPException."""
+    m = GITHUB_URL_RE.match(url.strip())
     if not m:
-        raise HTTPException(400, "Invalid GitHub URL. Example: https://github.com/owner/repo")
+        raise HTTPException(400, "Invalid GitHub URL. Expected: https://github.com/owner/repo")
     return m.group("owner"), m.group("repo")
 
 
 # ---------------------------------------------------------------------------
-# GitHub API helpers
+# GitHub file-tree builder from flat list
 # ---------------------------------------------------------------------------
-async def github_get(path: str) -> dict:
-    """GET request to GitHub API, returns parsed JSON."""
-    client = await gh_client()
-    resp = await client.get(f"{GITHUB_API}{path}")
-    if resp.status_code == 404:
-        raise HTTPException(404, "Not found on GitHub")
-    if resp.status_code == 403:
-        raise HTTPException(429, "GitHub API rate limit exceeded. Try again later.")
-    if resp.status_code != 200:
-        raise HTTPException(502, f"GitHub API error: {resp.status_code}")
-    return resp.json()
+def build_tree_from_items(items: list) -> list:
+    tree_map: dict = {}
+    roots: list = []
 
-
-async def github_get_raw(owner: str, repo: str, branch: str, file_path: str) -> bytes:
-    """Fetch raw file content from GitHub."""
-    client = await gh_client()
-    url = f"{GITHUB_RAW}/{owner}/{repo}/{branch}/{file_path}"
-    resp = await client.get(url)
-    if resp.status_code == 404:
-        raise HTTPException(404, "File not found on GitHub")
-    if resp.status_code != 200:
-        raise HTTPException(502, f"GitHub raw fetch error: {resp.status_code}")
-    return resp.content
-
-
-# ---------------------------------------------------------------------------
-# Recursive tree builder from GitHub flat tree
-# ---------------------------------------------------------------------------
-def build_tree_from_github(items: list) -> list:
-    """Convert GitHub flat tree (recursive) into nested tree structure."""
-    root: list = []
-    dirs: dict = {}  # path → children list
-
-    # Sort: directories first, then alphabetical
-    files = [i for i in items if i["type"] == "blob"]
-    trees = [i for i in items if i["type"] == "tree"]
-
-    # Create directory nodes
-    for t in sorted(trees, key=lambda x: x["path"].lower()):
-        parts = t["path"].rsplit("/", 1)
+    for item in items:
+        parts = item["path"].split("/")
         node = {
             "name": parts[-1],
-            "path": t["path"],
-            "type": "directory",
-            "children": [],
+            "path": item["path"],
+            "type": "directory" if item["type"] == "tree" else "file",
         }
-        dirs[t["path"]] = node["children"]
-
-        parent_path = parts[0] if len(parts) > 1 else None
-        if parent_path and parent_path in dirs:
-            dirs[parent_path].append(node)
+        if item["type"] == "blob":
+            node["size"] = item.get("size", 0)
         else:
-            root.append(node)
+            node["children"] = []
+        tree_map[item["path"]] = node
 
-    # Place file nodes
-    for f in sorted(files, key=lambda x: x["path"].lower()):
-        parts = f["path"].rsplit("/", 1)
-        node = {
-            "name": parts[-1],
-            "path": f["path"],
-            "type": "file",
-            "size": f.get("size", 0),
-        }
-        parent_path = parts[0] if len(parts) > 1 else None
-        if parent_path and parent_path in dirs:
-            dirs[parent_path].append(node)
+    for item in items:
+        parts = item["path"].split("/")
+        if len(parts) == 1:
+            roots.append(tree_map[item["path"]])
         else:
-            root.append(node)
+            parent_path = "/".join(parts[:-1])
+            if parent_path in tree_map:
+                tree_map[parent_path].setdefault("children", []).append(
+                    tree_map[item["path"]]
+                )
 
-    # Sort each level: directories first, then files, alphabetically
-    def sort_nodes(nodes):
-        nodes.sort(key=lambda n: (n["type"] != "directory", n["name"].lower()))
-        for n in nodes:
-            if "children" in n:
-                sort_nodes(n["children"])
-
-    sort_nodes(root)
-    return root
+    return roots
 
 
 # ===================================================================
 #  API ENDPOINTS
 # ===================================================================
 
-# 1. Add project by GitHub URL
+# 1. Add project via GitHub URL
 # -------------------------------------------------------------------
-@app.post("/api/projects")
-async def add_project(body: dict):
-    github_url = body.get("github_url", "").strip()
-    project_name = body.get("project_name", "").strip()
-
-    if not github_url:
-        raise HTTPException(400, "github_url is required")
-
+@app.post("/api/projects/add")
+async def add_project(
+    github_url: str = Form(...),
+    project_name: str = Form(...),
+    project_id: Optional[str] = Form(None),
+):
     owner, repo = parse_github_url(github_url)
 
-    # Verify the repo exists on GitHub
-    repo_info = await github_get(f"/repos/{owner}/{repo}")
+    # Validate that the repo exists
+    async with httpx.AsyncClient() as client:
+        r = await client.get(
+            f"{GITHUB_API}/repos/{owner}/{repo}",
+            headers={"Accept": "application/vnd.github+json"},
+            timeout=10,
+        )
+    if r.status_code == 404:
+        raise HTTPException(404, "GitHub repository not found")
+    if r.status_code != 200:
+        raise HTTPException(502, "GitHub API error")
 
-    if not project_name:
-        project_name = repo_info.get("name", repo)
-
+    repo_info = r.json()
     default_branch = repo_info.get("default_branch", "main")
 
     metadata = load_metadata()
 
-    # Check for duplicates
-    for proj in metadata["projects"].values():
-        if proj["owner"] == owner and proj["repo"] == repo:
-            raise HTTPException(409, "This repository is already added")
-
-    project_id = uuid.uuid4().hex[:12]
-    project = {
-        "id": project_id,
-        "name": project_name,
-        "owner": owner,
-        "repo": repo,
-        "github_url": f"https://github.com/{owner}/{repo}",
-        "default_branch": default_branch,
-        "description": repo_info.get("description", ""),
-        "created_at": time.time(),
-    }
+    if project_id and project_id in metadata["projects"]:
+        project = metadata["projects"][project_id]
+        project["github_url"] = github_url
+        project["owner"] = owner
+        project["repo"] = repo
+        project["default_branch"] = default_branch
+    else:
+        project_id = uuid.uuid4().hex[:12]
+        project = {
+            "id": project_id,
+            "name": project_name,
+            "github_url": github_url,
+            "owner": owner,
+            "repo": repo,
+            "default_branch": default_branch,
+            "created_at": time.time(),
+        }
 
     metadata["projects"][project_id] = project
     save_metadata(metadata)
 
-    return project
+    return {
+        "project_id": project_id,
+        "github_url": github_url,
+        "default_branch": default_branch,
+    }
 
 
 # 2. List all projects
@@ -250,8 +212,7 @@ async def list_projects():
             "id": proj["id"],
             "name": proj["name"],
             "github_url": proj["github_url"],
-            "description": proj.get("description", ""),
-            "default_branch": proj["default_branch"],
+            "default_branch": proj.get("default_branch", "main"),
             "created_at": proj["created_at"],
         })
     return {"projects": projects}
@@ -267,96 +228,167 @@ async def get_project(project_id: str):
     return metadata["projects"][project_id]
 
 
-# 4. Delete a project
+# 4. List branches (versions) from GitHub
 # -------------------------------------------------------------------
-@app.delete("/api/projects/{project_id}")
-async def delete_project(project_id: str):
-    metadata = load_metadata()
-    if project_id not in metadata["projects"]:
-        raise HTTPException(404, "Project not found")
-    del metadata["projects"][project_id]
-    save_metadata(metadata)
-    return {"ok": True}
-
-
-# 5. List branches of a project
-# -------------------------------------------------------------------
-@app.get("/api/projects/{project_id}/branches")
-async def list_branches(project_id: str):
+@app.get("/api/projects/{project_id}/versions")
+async def list_versions(project_id: str):
     metadata = load_metadata()
     if project_id not in metadata["projects"]:
         raise HTTPException(404, "Project not found")
     proj = metadata["projects"][project_id]
-    data = await github_get(f"/repos/{proj['owner']}/{proj['repo']}/branches?per_page=100")
-    branches = [b["name"] for b in data]
-    return {"branches": branches, "default": proj["default_branch"]}
+    owner, repo = proj["owner"], proj["repo"]
+
+    async with httpx.AsyncClient() as client:
+        r = await client.get(
+            f"{GITHUB_API}/repos/{owner}/{repo}/branches",
+            headers={"Accept": "application/vnd.github+json"},
+            timeout=10,
+        )
+    if r.status_code != 200:
+        raise HTTPException(502, "Failed to fetch branches from GitHub")
+
+    branches = [
+        {"version": b["name"], "commit": b["commit"]["sha"][:7]}
+        for b in r.json()
+    ]
+    return {"versions": branches}
 
 
-# 6. File tree for a specific branch
+# 5. File tree for a branch via GitHub API
 # -------------------------------------------------------------------
-@app.get("/api/projects/{project_id}/tree")
-async def get_file_tree(project_id: str, ref: Optional[str] = None):
+@app.get("/api/projects/{project_id}/versions/{version}/tree")
+async def get_file_tree(project_id: str, version: str):
     metadata = load_metadata()
     if project_id not in metadata["projects"]:
         raise HTTPException(404, "Project not found")
     proj = metadata["projects"][project_id]
-    branch = ref or proj["default_branch"]
+    owner, repo = proj["owner"], proj["repo"]
 
-    data = await github_get(
-        f"/repos/{proj['owner']}/{proj['repo']}/git/trees/{branch}?recursive=1"
-    )
-    if "tree" not in data:
+    async with httpx.AsyncClient() as client:
+        r = await client.get(
+            f"{GITHUB_API}/repos/{owner}/{repo}/git/trees/{version}?recursive=1",
+            headers={"Accept": "application/vnd.github+json"},
+            timeout=15,
+        )
+    if r.status_code == 404:
+        raise HTTPException(404, "Branch not found")
+    if r.status_code != 200:
         raise HTTPException(502, "Failed to fetch file tree from GitHub")
 
-    return {"tree": build_tree_from_github(data["tree"])}
+    items = r.json().get("tree", [])
+    return {"tree": build_tree_from_items(items)}
 
 
-# 7. Get a single file's content (proxied from GitHub)
+# 6. Get a single file (proxied from GitHub raw)
 # -------------------------------------------------------------------
-@app.get("/api/projects/{project_id}/file")
-async def get_file(
-    project_id: str,
-    path: str = Query(...),
-    ref: Optional[str] = None,
-):
-    metadata = load_metadata()
-    if project_id not in metadata["projects"]:
-        raise HTTPException(404, "Project not found")
-    proj = metadata["projects"][project_id]
-    branch = ref or proj["default_branch"]
-
-    # Validate path — no traversal
+@app.get("/api/projects/{project_id}/versions/{version}/files")
+async def get_file(project_id: str, version: str, path: str = Query(...)):
     if ".." in path or path.startswith("/"):
-        raise HTTPException(403, "Invalid file path")
-
-    content = await github_get_raw(proj["owner"], proj["repo"], branch, path)
-
-    # Guess content type
-    import mimetypes
-    mime, _ = mimetypes.guess_type(path)
-    if mime is None:
-        mime = "application/octet-stream"
-
-    return Response(content=content, media_type=mime)
-
-
-# 8. README.md content (raw markdown)
-# -------------------------------------------------------------------
-@app.get("/api/projects/{project_id}/readme")
-async def get_readme(project_id: str, ref: Optional[str] = None):
+        raise HTTPException(403, "Invalid path")
     metadata = load_metadata()
     if project_id not in metadata["projects"]:
         raise HTTPException(404, "Project not found")
     proj = metadata["projects"][project_id]
-    branch = ref or proj["default_branch"]
+    owner, repo = proj["owner"], proj["repo"]
 
-    try:
-        content = await github_get_raw(proj["owner"], proj["repo"], branch, "README.md")
-        raw = content.decode("utf-8", errors="replace")
-    except HTTPException:
+    url = f"{GITHUB_RAW}/{owner}/{repo}/{version}/{path}"
+    async with httpx.AsyncClient() as client:
+        r = await client.get(url, timeout=15, follow_redirects=True)
+    if r.status_code == 404:
+        raise HTTPException(404, "File not found")
+    if r.status_code != 200:
+        raise HTTPException(502, "Failed to fetch file from GitHub")
+
+    content_type = r.headers.get("content-type", "application/octet-stream")
+    return StreamingResponse(iter([r.content]), media_type=content_type)
+
+
+# 7. Download — redirect to GitHub's ZIP archive
+# -------------------------------------------------------------------
+@app.get("/api/projects/{project_id}/versions/{version}/download")
+async def download_version(project_id: str, version: str):
+    metadata = load_metadata()
+    if project_id not in metadata["projects"]:
+        raise HTTPException(404, "Project not found")
+    proj = metadata["projects"][project_id]
+    owner, repo = proj["owner"], proj["repo"]
+
+    zip_url = f"https://github.com/{owner}/{repo}/archive/refs/heads/{version}.zip"
+    return RedirectResponse(url=zip_url)
+
+
+# 8. README.md content (fetched from GitHub raw)
+# -------------------------------------------------------------------
+@app.get("/api/projects/{project_id}/versions/{version}/readme")
+async def get_readme(project_id: str, version: str):
+    metadata = load_metadata()
+    if project_id not in metadata["projects"]:
+        raise HTTPException(404, "Project not found")
+    proj = metadata["projects"][project_id]
+    owner, repo = proj["owner"], proj["repo"]
+
+    url = f"{GITHUB_RAW}/{owner}/{repo}/{version}/README.md"
+    async with httpx.AsyncClient() as client:
+        r = await client.get(url, timeout=10, follow_redirects=True)
+    if r.status_code == 404:
         raise HTTPException(404, "README.md not found")
+    if r.status_code != 200:
+        raise HTTPException(502, "Failed to fetch README from GitHub")
 
-    return {"markdown": raw}
+    raw = r.text
+    html = markdown.markdown(raw, extensions=["tables", "fenced_code", "codehilite"])
+    return {"markdown": raw, "html": html}
+
+
+# 9. Preview — proxy files from GitHub raw
+# -------------------------------------------------------------------
+@app.get("/api/preview/{project_id}/{version}/{file_path:path}")
+async def preview_file(project_id: str, version: str, file_path: str):
+    if ".." in file_path or file_path.startswith("/"):
+        raise HTTPException(403, "Invalid path")
+
+    metadata = load_metadata()
+    if project_id not in metadata["projects"]:
+        raise HTTPException(404, "Project not found")
+    proj = metadata["projects"][project_id]
+    owner, repo = proj["owner"], proj["repo"]
+
+    if not file_path:
+        file_path = "index.html"
+
+    url = f"{GITHUB_RAW}/{owner}/{repo}/{version}/{file_path}"
+    async with httpx.AsyncClient() as client:
+        r = await client.get(url, timeout=15, follow_redirects=True)
+    if r.status_code == 404:
+        raise HTTPException(404, "File not found")
+    if r.status_code != 200:
+        raise HTTPException(502, "Failed to fetch preview from GitHub")
+
+    content_type = r.headers.get("content-type", "text/html")
+    response = StreamingResponse(iter([r.content]), media_type=content_type)
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:; "
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval'; "
+        "style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data: blob:; "
+        "font-src 'self' data:; "
+        "connect-src 'none'; "
+        "frame-ancestors http://localhost:3000"
+    )
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    return response
+
+
+# 10. WebSocket — live version notifications
+# -------------------------------------------------------------------
+@app.websocket("/ws/projects/{project_id}")
+async def websocket_endpoint(websocket: WebSocket, project_id: str):
+    await manager.connect(websocket, project_id)
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        manager.disconnect(websocket, project_id)
 
 
 # ---------------------------------------------------------------------------

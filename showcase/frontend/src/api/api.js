@@ -8,23 +8,28 @@ const api = axios.create({
 // Projects
 export const listProjects = () => api.get("/projects");
 export const getProject = (id) => api.get(`/projects/${id}`);
-export const deleteProject = (id) => api.delete(`/projects/${id}`);
+export const listVersions = (id) => api.get(`/projects/${id}/versions`);
+export const getFileTree = (id, version) =>
+  api.get(`/projects/${id}/versions/${version}/tree`);
+export const getReadme = (id, version) =>
+  api.get(`/projects/${id}/versions/${version}/readme`);
 
-export const addProject = (githubUrl, projectName) =>
-  api.post("/projects", { github_url: githubUrl, project_name: projectName });
+export const addProject = (githubUrl, projectName, projectId) => {
+  const form = new FormData();
+  form.append("github_url", githubUrl);
+  form.append("project_name", projectName);
+  if (projectId) form.append("project_id", projectId);
+  return api.post("/projects/add", form);
+};
 
-// Branches
-export const listBranches = (id) => api.get(`/projects/${id}/branches`);
+// Helpers — build full URLs for preview iframe and file download
+export const previewUrl = (id, version, path = "index.html") =>
+  `/api/preview/${id}/${version}/${path}`;
 
-// Tree & files (branch-based)
-export const getFileTree = (id, ref) =>
-  api.get(`/projects/${id}/tree`, { params: { ref } });
+export const downloadUrl = (id, version) =>
+  `/api/projects/${id}/versions/${version}/download`;
 
-export const getReadme = (id, ref) =>
-  api.get(`/projects/${id}/readme`, { params: { ref } });
-
-// Helpers — build full URLs for file content
-export const fileUrl = (id, path, ref) =>
-  `/api/projects/${id}/file?path=${encodeURIComponent(path)}${ref ? `&ref=${encodeURIComponent(ref)}` : ""}`;
+export const fileUrl = (id, version, path) =>
+  `/api/projects/${id}/versions/${version}/files?path=${encodeURIComponent(path)}`;
 
 export default api;

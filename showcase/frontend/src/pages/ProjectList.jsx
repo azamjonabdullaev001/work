@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { listProjects } from "../api/api";
-import AddRepoModal from "../components/UploadModal";
+import UploadModal from "../components/UploadModal";
 
 export default function ProjectList() {
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showAdd, setShowAdd] = useState(false);
+  const [showUpload, setShowUpload] = useState(false);
 
   const fetchProjects = async () => {
     try {
@@ -23,8 +23,8 @@ export default function ProjectList() {
     fetchProjects();
   }, []);
 
-  const handleAdded = () => {
-    setShowAdd(false);
+  const handleUploaded = (result) => {
+    setShowUpload(false);
     fetchProjects();
   };
 
@@ -34,8 +34,8 @@ export default function ProjectList() {
     <div>
       <div className="project-list-header">
         <h1>Projects</h1>
-        <button className="btn btn-primary" onClick={() => setShowAdd(true)}>
-          + Add Project
+        <button className="btn btn-primary" onClick={() => setShowUpload(true)}>
+          + New Project
         </button>
       </div>
 
@@ -50,17 +50,17 @@ export default function ProjectList() {
             <Link key={p.id} to={`/projects/${p.id}`} className="project-card">
               <h3>{p.name}</h3>
               <div className="meta">
-                {p.description && <span>{p.description}</span>}
+                {p.default_branch} · {p.github_url.replace("https://github.com/", "")}
               </div>
             </Link>
           ))}
         </div>
       )}
 
-      {showAdd && (
-        <AddRepoModal
-          onClose={() => setShowAdd(false)}
-          onAdded={handleAdded}
+      {showUpload && (
+        <UploadModal
+          onClose={() => setShowUpload(false)}
+          onUploaded={handleUploaded}
         />
       )}
     </div>

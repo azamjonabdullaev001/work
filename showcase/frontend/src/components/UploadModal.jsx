@@ -1,21 +1,22 @@
 import React, { useState } from "react";
 import { addProject } from "../api/api";
 
-export default function AddRepoModal({ onClose, onAdded }) {
-  const [url, setUrl] = useState("");
+export default function UploadModal({ onClose, onUploaded, existingProjectId }) {
   const [name, setName] = useState("");
+  const [githubUrl, setGithubUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!url.trim()) return setError("Enter a GitHub repository URL");
+    if (!githubUrl.trim()) return setError("Enter a GitHub repository URL");
+    if (!existingProjectId && !name.trim()) return setError("Enter a project name");
 
     setLoading(true);
     setError("");
     try {
-      const res = await addProject(url, name);
-      onAdded(res.data);
+      const res = await addProject(githubUrl, name || "Untitled", existingProjectId);
+      onUploaded(res.data);
     } catch (err) {
       setError(err.response?.data?.detail || "Failed to add project");
     } finally {
@@ -26,19 +27,21 @@ export default function AddRepoModal({ onClose, onAdded }) {
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <h2>Add GitHub Project</h2>
+        <h2>{existingProjectId ? "Update Repository URL" : "New Project"}</h2>
         <form onSubmit={handleSubmit}>
+          {!existingProjectId && (
+            <input
+              type="text"
+              placeholder="Project name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
+          )}
           <input
             type="url"
             placeholder="https://github.com/owner/repo"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-          />
-          <input
-            type="text"
-            placeholder="Project name (optional)"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
+            value={githubUrl}
+            onChange={(e) => setGithubUrl(e.target.value)}
           />
           {error && (
             <p style={{ color: "#f85149", fontSize: "0.85rem", marginBottom: 8 }}>
@@ -50,7 +53,7 @@ export default function AddRepoModal({ onClose, onAdded }) {
               Cancel
             </button>
             <button type="submit" className="btn btn-primary" disabled={loading}>
-              {loading ? "Adding…" : "Add Project"}
+              {loading ? "Adding…" : existingProjectId ? "Update" : "Add"}
             </button>
           </div>
         </form>
